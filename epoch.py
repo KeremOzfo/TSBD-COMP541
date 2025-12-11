@@ -446,6 +446,4 @@ def bd_test_with_samples(
 # Aliases for clarity (indicates these run one full epoch)
 clean_train_epoch = clean_train
 clean_test_epoch = clean_test
-bd_train_epoch = bd_train
 bd_test_epoch = bd_test
-trigger_train_epoch_alias = trigger_train_epoch  # Explicit alias for trigger training

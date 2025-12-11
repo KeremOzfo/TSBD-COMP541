@@ -16,8 +16,8 @@ from models.bd_patchTST import Model as Bd_PatchTST
 from models.bd_inverted import Model as Bd_Inverted
 from models.bd_cnn import bd_CNN
 from epoch import (
-    clean_train, clean_test, bd_train, bd_test,
-    clean_train_epoch, clean_test_epoch, bd_train_epoch, bd_test_epoch,
+    clean_train, clean_test, bd_test,
+    clean_train_epoch, clean_test_epoch, bd_test_epoch,
     trigger_train_epoch, bd_test_with_samples
 )
 
