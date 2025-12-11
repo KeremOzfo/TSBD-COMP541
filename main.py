@@ -17,8 +17,9 @@ from models.bd_inverted import Model as Bd_Inverted
 from models.bd_cnn import bd_CNN
 from epoch import (
     clean_train, clean_test, bd_test,
-    clean_train_epoch, clean_test_epoch, bd_test_epoch,
-    trigger_train_epoch, bd_test_with_samples
+    clean_train_epoch, clean_test_epoch, bd_test_epoch, bd_test_with_samples
+)
+from dynamic_triggers import (trigger_train_epoch
 )
 
 #Notes#
@@ -44,6 +45,9 @@ trigger_model_dict = {
     'patchTST': Bd_PatchTST,
     'itst': Bd_Inverted
 }
+
+def trigger_train_epoch_global():
+    return
 
 
 def subset_dataset(dataset, ratio):
@@ -441,7 +445,7 @@ def training_with_poissoned_data(args, trigger_model):
         
         # Optionally warmup the surrogate
         if args.warmup_epochs > 0:
-            warmup_surrogate(trigger_model, model, full_train_loader, args)
+            warmup_surrogate(surrogate_model, full_train_loader, args)
         
         # Train the trigger model
         trigger_results = train_trigger_model(
@@ -526,14 +530,10 @@ if __name__ == "__main__":
     if args.mode == "clean":
         acc, model = training_with_clean_data(args)
 
-    elif args.mode in ["basic", "dynamic"]: 
+    elif args.mode in ["basic", "marksman", "dynamic"]: 
         trigger_model = trigger_model_dict[args.Tmodel](args).float().to(args.device)  # Default to None (basic patch mode)
         
-        if args.mode == "basic":
-            trigger_results, model_poison_dic = training_with_poissoned_data(args, trigger_model)
-
-        elif args.mode == 'dynamic':
-            raise NotImplementedError("Dynamic trigger model training not implemented in this snippet.")
+        trigger_results, model_poison_dic = training_with_poissoned_data(args, trigger_model)
         
     else:
         raise ValueError("Unknown mode: clean | basic | triggerNet")

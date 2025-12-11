@@ -96,7 +96,7 @@ def args_parser():
                         help='number of backdoor training epochs')
 
     parser.add_argument('--mode', type=str, default='clean',
-                        choices=['clean', 'basic', 'dynamic'],
+                        choices=['clean', 'basic','marksman', 'dynamic'],
                         help='training mode')
 
     # ---------------- BACKDOOR SETTINGS ----------------

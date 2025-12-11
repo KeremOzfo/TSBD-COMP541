@@ -3,9 +3,39 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from utils.eval_utils import cal_accuracy
-from utils.loss_utils import reg_loss
+#from utils.loss_utils import reg_loss
 
+
+def cal_accuracy(preds, trues):
+    """Compute accuracy given predicted labels and true labels (numpy or array-like)."""
+    preds_np = np.asarray(preds).reshape(-1)
+    trues_np = np.asarray(trues).reshape(-1)
+    if preds_np.shape[0] == 0:
+        return 0.0
+    return float(np.mean(preds_np == trues_np))
+
+def trigger_train_epoch(trigger_model, surrogate_model, loader, args, optimizer_trigger, optimizer_surrogate): 
+    if args.mode == 'marksman':
+        return epoch_marksman(
+            trigger_model,
+            surrogate_model,
+            loader,
+            args,
+            opt_cls=optimizer_surrogate,
+            opt_trig=optimizer_trigger,
+            train=True,
+        )
+    elif args.mode == 'basic':
+        return epoch_vanilla_training(
+            trigger_model,
+            surrogate_model,
+            loader,
+            args,
+            optimizer_trigger,
+            optimizer_surrogate,
+        )
+    else:
+        raise NotImplementedError(f"Unknown training mode: {args.mode}")
 
 def _frequency_basis(seq_len: int, channels: int, device: torch.device, cache: dict, t: int) -> torch.Tensor:
     """Return a real-valued temporal basis whose spectrum has energy only at freq bin t."""
@@ -171,15 +201,103 @@ def epoch_frequency_guided(
 
     return total_loss, loss_dict, clean_accuracy, bd_accuracy
 
-def epoch_vanilla_training():
-  """ Vanilla trigger training framework *** cite related work ***
 
-  """
-  return
+def epoch_vanilla_training(trigger_model, surrogate_model, loader, args, optimizer_trigger, optimizer_surrogate):
+    """Train trigger generator and surrogate classifier (one epoch).
+    
+    Standard approach for training dynamic triggers:
+    1. Generate triggers for input samples
+    2. Train surrogate to:
+       - Classify clean samples correctly (maintains utility)
+       - Classify triggered samples as target label (backdoor effectiveness)
+    3. Update trigger generator to maximize backdoor success
+    
+    Args:
+        trigger_model: Trigger generator network
+        surrogate_model: Surrogate classifier
+        loader: Training data loader
+        args: Training arguments
+        optimizer_trigger: Optimizer for trigger generator
+        optimizer_surrogate: Optimizer for surrogate classifier
+    
+    Returns:
+        avg_loss: Average loss
+        clean_acc: Accuracy on clean samples
+        bd_acc: Accuracy on backdoored samples (ASR)
+    """
+    trigger_model.train()
+    surrogate_model.train()
+    
+    total_loss = []
+    clean_preds = []
+    bd_preds = []
+    clean_labels = []
+    bd_labels_list = []
+    
+    target_label = args.target_label
+    
+    for i, (batch_x, label, padding_mask) in enumerate(loader):
+        batch_x = batch_x.float().to(args.device)
+        padding_mask = padding_mask.float().to(args.device)
+        label = label.to(args.device)
+        
+        batch_size = batch_x.size(0)
+        bd_labels = torch.ones_like(label) * target_label
+        
+        # Generate triggers
+        trigger, trigger_clipped = trigger_model(batch_x, padding_mask, None, None, bd_labels)
+        
+        # Create triggered samples
+        batch_x_bd = batch_x + trigger_clipped
+        
+        # Forward pass on both clean and triggered samples
+        optimizer_surrogate.zero_grad()
+        optimizer_trigger.zero_grad()
+        
+        # Clean samples - should predict correct label
+        clean_out = surrogate_model(batch_x, padding_mask, None, None)
+        loss_clean = args.criterion(clean_out, label.long().squeeze(-1))
+        
+        # Backdoor samples - should predict target label
+        bd_out = surrogate_model(batch_x_bd, padding_mask, None, None)
+        loss_bd = args.criterion(bd_out, bd_labels.long().squeeze(-1))
+        
+        # Combined loss
+        loss = loss_clean + loss_bd
+        
+        loss.backward()
+        optimizer_trigger.step()
+        optimizer_surrogate.step()
+        
+        total_loss.append(loss.item())
+        clean_preds.append(clean_out.detach())
+        bd_preds.append(bd_out.detach())
+        clean_labels.append(label)
+        bd_labels_list.append(bd_labels)
+    
+    # Compute metrics
+    avg_loss = np.average(total_loss)
+    
+    clean_preds = torch.cat(clean_preds, 0)
+    bd_preds = torch.cat(bd_preds, 0)
+    clean_labels = torch.cat(clean_labels, 0)
+    bd_labels_all = torch.cat(bd_labels_list, 0)
+    
+    # Clean accuracy
+    clean_probs = torch.nn.functional.softmax(clean_preds, dim=-1)
+    clean_predictions = torch.argmax(clean_probs, dim=1).cpu().numpy()
+    clean_acc = np.mean(clean_predictions == clean_labels.flatten().cpu().numpy())
+    
+    # Backdoor accuracy (Attack Success Rate)
+    bd_probs = torch.nn.functional.softmax(bd_preds, dim=-1)
+    bd_predictions = torch.argmax(bd_probs, dim=1).cpu().numpy()
+    bd_acc = np.mean(bd_predictions == bd_labels_all.flatten().cpu().numpy())
+    
+    return avg_loss, clean_acc, bd_acc
 
 
-def epoch_marksma(
-    bd_model,
+def epoch_marksman(
+    trigger_model,
     surr_model,
     loader,
     args,
@@ -217,10 +335,10 @@ def epoch_marksma(
         raise ValueError("args.num_class (or args.numb_class) is required for Marksman training")
 
     if train:
-        bd_model.train()
+        trigger_model.train()
         surr_model.train()
     else:
-        bd_model.eval()
+        trigger_model.eval()
         surr_model.eval()
 
     total_loss = []
@@ -245,7 +363,7 @@ def epoch_marksma(
             opt_trig.zero_grad()
 
         with torch.no_grad():  # keep generator fixed for classifier step
-            _, trigger_clip_det = bd_model(batch_x, padding_mask, None, None, bd_labels)
+            _, trigger_clip_det = trigger_model(batch_x, padding_mask, None, None, bd_labels)
         triggered_inputs = batch_x + trigger_clip_det
 
         pred_clean = surr_model(batch_x, padding_mask, None, None)
@@ -268,7 +386,7 @@ def epoch_marksma(
                 p.requires_grad = False
 
             opt_trig.zero_grad()
-            trigger, trigger_clip = bd_model(batch_x, padding_mask, None, None, bd_labels)
+            trigger, trigger_clip = trigger_model(batch_x, padding_mask, None, None, bd_labels)
             attacked = batch_x + trigger_clip
             pred_trig = surr_model(attacked, padding_mask, None, None)
             loss_trig = args.criterion(pred_trig, bd_labels.long().squeeze(-1))
@@ -307,7 +425,7 @@ def epoch_marksma(
     bd_predictions = torch.argmax(torch.nn.functional.softmax(bd_preds, dim=1), dim=1).cpu().numpy()
     bd_accuracy = cal_accuracy(bd_predictions, bd_labels_all.flatten().cpu().numpy())
 
-    return total_loss, loss_dict, clean_accuracy, bd_accuracy
+    return total_loss, clean_accuracy, bd_accuracy
 
 def epoch_diversity(bd_model,surr_model, loader1, args, loader2=None, opt=None,opt2=None,train=True): 
     """

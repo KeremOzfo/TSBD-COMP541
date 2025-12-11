@@ -105,58 +105,6 @@ def clean_test(model,loader,args):
 
 
 
-def bd_train(model, loader, args, optimizer, trigger_model=None):
-    """Train victim model on mix of clean and poisoned samples.
-    
-    Standard backdoor training approach:
-    - For each batch, poison a fraction (poisoning_ratio) of samples
-    - Train model to classify clean samples correctly AND poisoned samples as target
-    
-    Args:
-        model: Victim model being poisoned
-        loader: Training data loader
-        args: Training arguments
-        optimizer: Optimizer for victim model
-        trigger_model: Trigger generator (None for basic patch)
-    
-    Returns:
-        avg_loss: Average loss over epoch
-        accuracy: Training accuracy (on mixed clean+poisoned data)
-    """
-    model.train()
-    total_loss = []
-    preds = []
-    trues = []
-
-    for i, (batch_x, label, padding_mask) in enumerate(loader):
-        batch_x = batch_x.float().to(args.device)
-        padding_mask = padding_mask.float().to(args.device)
-        label = label.to(args.device)
-
-        # Apply trigger to fraction of samples
-        batch_x, label = apply_trigger(batch_x, label, args, trigger_model)
-        
-        model.zero_grad()
-        outs = model(batch_x, padding_mask, None, None)
-        loss = args.criterion(outs, label.long().squeeze(-1))
-
-        total_loss.append(loss.item())
-        preds.append(outs.detach())
-        trues.append(label)
-
-        loss.backward()
-        optimizer.step()
-
-    total_loss = np.average(total_loss)
-    preds = torch.cat(preds, 0)
-    trues = torch.cat(trues, 0)
-    probs = torch.nn.functional.softmax(preds, dim=-1)
-    predictions = torch.argmax(probs, dim=1).cpu().numpy()
-    trues = trues.flatten().cpu().numpy()
-    accuracy = np.mean(predictions == trues)
-    return total_loss, accuracy
-
-
 def trigger_train_epoch(trigger_model, surrogate_model, loader, args, optimizer_trigger, optimizer_surrogate):
     """Train trigger generator and surrogate classifier (one epoch).
     
