@@ -489,12 +489,17 @@ def training_with_poissoned_data(args, trigger_model):
         model, test_loader, args, trigger_model, max_success=8, max_failure=8
     )
 
-    # Persist logs, curves, and example plots
+    # Persist logs, curves, example plots, and latent separability
     log_all(
         args=args,
         trigger_results=trigger_results,
         model_poison_dic=model_poison_dic,
         sample_cases=sample_cases,
+        model=model,
+        test_loader=test_loader,
+        trigger_model=trigger_model,
+        latent_method=getattr(args, "latent_method", "pca"),
+        latent_max_points=getattr(args, "latent_max_points", 2000),
     )
     print("\n" + "="*60)
     print("BACKDOOR TRAINING COMPLETED")

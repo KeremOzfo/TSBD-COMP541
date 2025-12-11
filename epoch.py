@@ -27,29 +27,13 @@ def apply_trigger(batch_x, label, args, trigger_model=None):
     # Clean mode -> no-op
     if args.mode == "clean":
         return batch_x, label
-
-    # Basic backdoor (sabit patch)
-    if args.mode == "basic":
-        B = batch_x.size(0)
-        poison_mask = torch.rand(B) < args.poisoning_ratio
-
-        # seçilen örneklere patch ekle
-        for i in range(B):
-            if poison_mask[i]:
-                batch_x[i, -5:, 0] += args.clip_ratio  # küçük sabit tetikleyici
-                label[i] = args.target_label
-        return batch_x, label
-
-    # Trigger generator (Bd-MLP / TimesBA)
-    if args.mode == "triggerNet":
+    else:
         batch_x = batch_x.to(args.device)
         target_labels = torch.ones_like(label) * args.target_label
         trigger, trigger_clipped = trigger_model(batch_x, None, None, None, target_labels)
         batch_x = batch_x + trigger_clipped
         label[:] = args.target_label
         return batch_x, label
-
-    return batch_x, label
 
 
 

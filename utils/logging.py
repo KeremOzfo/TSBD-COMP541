@@ -5,7 +5,7 @@ Logging and visualization utilities for experiments.
 - log_all: record args, final metrics, plots for trigger/model training, and
   backdoor examples using plot_backdoor_cases.
 """
-
+import torch
 import json
 import os
 import time
@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from utils.plot import plot_backdoor_cases
+from utils.latent_sep import plot_latent_separability
 
 
 def log_result_clean(path: str, info: Dict[str, Any]) -> None:
@@ -49,6 +50,11 @@ def log_all(
     trigger_results: Optional[Dict[str, Any]],
     model_poison_dic: Optional[Dict[str, Any]],
     sample_cases: Optional[Dict[str, Any]] = None,
+    model: Optional[torch.nn.Module] = None,
+    test_loader: Any = None,
+    trigger_model: Optional[torch.nn.Module] = None,
+    latent_method: str = "pca",
+    latent_max_points: int = 2000,
     save_dir: str | Path = "Results",
     run_hash: Optional[str] = None,
 ) -> Path:
@@ -186,6 +192,23 @@ def log_all(
             print(f"[log_all] Failed to plot backdoor cases: {exc}")
             with open(manifest_path, "w", encoding="utf-8") as mf:
                 mf.write(f"Plotting failed: {exc}\n")
+
+    # Latent separability plot (optional)
+    if model is not None and test_loader is not None:
+        try:
+            latent_dir = exp_dir / "latent"
+            latent_dir.mkdir(parents=True, exist_ok=True)
+            plot_latent_separability(
+                model=model,
+                loader=test_loader,
+                args=args,
+                trigger_model=trigger_model,
+                method=latent_method,
+                save_dir=latent_dir,
+                max_points=latent_max_points,
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            print(f"[log_all] Failed to plot latent separability: {exc}")
 
     return exp_dir
 
