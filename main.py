@@ -264,7 +264,7 @@ def poison_data(trigger_model, train_data, args):
         args: Arguments containing poisoning ratio and target label
     
     Returns:
-        Poisoned dataset with triggers applied to a fraction of samples
+        poisoned_dataset, poison_indices
     """
     print("=== STEP 2: DATA POISONING ===")
     print(f"Poisoning ratio: {args.poisoning_ratio*100:.1f}%")
@@ -277,7 +277,7 @@ def poison_data(trigger_model, train_data, args):
     if num_poison == 0:
         print("No samples to poison (ratio too low)")
         print("=== DATA POISONING SKIPPED ===")
-        return train_data
+        return train_data, []
     
     # Select random indices to poison
     import random
@@ -345,7 +345,7 @@ def poison_data(trigger_model, train_data, args):
     print(f"Successfully poisoned {num_poison} samples")
     print("=== DATA POISONING COMPLETED ===")
     
-    return train_data
+    return train_data, poison_indices
 
 def poison_model(model, trigger_model, train_loader, test_loader, args):
     """Train the main model with poisoned data (backdoor injection).
@@ -460,7 +460,7 @@ def training_with_poissoned_data(args, trigger_model):
     # -------------------------
     # STEP 2: Data Poisoning Setup
     # -------------------------
-    poisoned_data = poison_data(trigger_model, full_train_data, args)
+    poisoned_data, poison_indices = poison_data(trigger_model, full_train_data, args)
     
     # Recreate data loader with poisoned data
     poisoned_train_loader = DataLoader(
@@ -471,6 +471,20 @@ def training_with_poissoned_data(args, trigger_model):
         drop_last=False,
         collate_fn=functools.partial(collate_fn, max_len=args.seq_len)
     )
+
+    # Loader containing only poisoned samples for latent separability plotting
+    from torch.utils.data import Subset
+    poisoned_only_loader = None
+    if poison_indices:
+        poisoned_subset = Subset(poisoned_data, poison_indices)
+        poisoned_only_loader = DataLoader(
+            poisoned_subset,
+            batch_size=args.batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+            drop_last=False,
+            collate_fn=functools.partial(collate_fn, max_len=args.seq_len),
+        )
     
     # -------------------------
     # STEP 3: Model Poisoning
@@ -497,6 +511,7 @@ def training_with_poissoned_data(args, trigger_model):
         sample_cases=sample_cases,
         model=model,
         test_loader=test_loader,
+        poisoned_loader=poisoned_only_loader if 'poisoned_only_loader' in locals() else None,
         trigger_model=trigger_model,
         latent_method=getattr(args, "latent_method", "pca"),
         latent_max_points=getattr(args, "latent_max_points", 2000),

@@ -52,6 +52,7 @@ def log_all(
     sample_cases: Optional[Dict[str, Any]] = None,
     model: Optional[torch.nn.Module] = None,
     test_loader: Any = None,
+    poisoned_loader: Any = None,
     trigger_model: Optional[torch.nn.Module] = None,
     latent_method: str = "pca",
     latent_max_points: int = 2000,
@@ -206,6 +207,7 @@ def log_all(
                 method=latent_method,
                 save_dir=latent_dir,
                 max_points=latent_max_points,
+                poisoned_loader=poisoned_loader,
             )
         except Exception as exc:  # pragma: no cover - defensive logging
             print(f"[log_all] Failed to plot latent separability: {exc}")

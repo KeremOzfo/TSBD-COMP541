@@ -16,8 +16,6 @@ import torch
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
-from epoch import apply_trigger
-
 Method = Literal["pca", "tsne"]
 
 
@@ -44,54 +42,57 @@ def plot_latent_separability(
     model: torch.nn.Module,
     loader,
     args,
-    trigger_model: Optional[torch.nn.Module] = None,
+    trigger_model: Optional[torch.nn.Module] = None,  # kept for signature compatibility; unused
     method: Method = "pca",
     save_dir: str | Path = "Results/latent",
     max_points: int = 2000,
+    poisoned_loader: Optional[object] = None,
 ) -> dict:
-    """Generate a 2D projection scatter plot for clean vs backdoored inputs.
+    """Generate a 2D projection scatter plot for clean vs poisoned inputs.
 
+    Expects `poisoned_loader` to contain already-poisoned samples (no trigger application here).
     Returns a dict with paths and simple stats.
     """
     model.eval()
-    if trigger_model is not None:
-        trigger_model.eval()
 
     clean_feats = []
     bd_feats = []
     labels = []
-    total_seen = 0
-    total_success = 0
+    total_clean_seen = 0
+    total_bd_seen = 0
     with torch.no_grad():
+        # Clean forward passes
         for batch_x, label, padding_mask in loader:
             batch_x = batch_x.float().to(args.device)
             padding_mask = padding_mask.float().to(args.device)
             label = label.to(args.device)
-            original_label = label.clone()
-            target_labels = torch.ones_like(label) * args.target_label
-            total_seen += batch_x.size(0)
+            total_clean_seen += batch_x.size(0)
 
-            # Clean forward
             clean_out = model(batch_x, padding_mask, None, None)
             clean_feat = _get_feature(clean_out)
 
-            # Triggered forward
-            bd_batch_x, _ = apply_trigger(batch_x.clone(), label.clone(), args, trigger_model)
-            bd_out = model(bd_batch_x, padding_mask, None, None)
+            clean_feats.append(clean_feat.detach())
+            labels.append(label.detach())
+
+        if poisoned_loader is None:
+            raise RuntimeError("poisoned_loader is required for latent separability (poisoned samples).")
+
+        # Poisoned forward passes (pre-poisoned dataset). Use all provided poisoned samples.
+        for batch_x, label, padding_mask in poisoned_loader:
+            batch_x = batch_x.float().to(args.device)
+            padding_mask = padding_mask.float().to(args.device)
+            label = label.to(args.device)
+
+            total_bd_seen += batch_x.size(0)
+
+            bd_out = model(batch_x, padding_mask, None, None)
             bd_feat = _get_feature(bd_out)
-
-            # Only keep successful backdoor cases: pred==target_label and true!=target_label
-            preds_bd = torch.argmax(torch.softmax(bd_out, dim=-1), dim=1)
-            success_mask = (preds_bd == args.target_label) & (original_label.squeeze(-1) != args.target_label)
-            total_success += int(success_mask.sum().item())
-
-            if success_mask.any():
-                clean_feats.append(clean_feat.detach()[success_mask])
-                bd_feats.append(bd_feat.detach()[success_mask])
-                labels.append(original_label.detach()[success_mask])
+            bd_feats.append(bd_feat.detach())
 
     if not clean_feats:
-        raise RuntimeError("No successful backdoor samples collected; check ASR or success criteria.")
+        raise RuntimeError("No clean features collected; check the loader or model output.")
+    if not bd_feats:
+        raise RuntimeError("No poisoned features collected; provide poisoned_loader or check trigger path.")
 
     clean_feats = torch.cat(clean_feats, dim=0)
     bd_feats = torch.cat(bd_feats, dim=0)
@@ -118,15 +119,15 @@ def plot_latent_separability(
     fig_path = save_root / f"latent_{method}.png"
     stats_path = save_root / "latent_stats.txt"
 
-    # Plot backdoor first so clean markers are visible on top when they overlap.
+    # Plot poisoned first so clean markers are visible on top when they overlap.
     plt.figure(figsize=(8, 6))
     plt.scatter(
         proj_bd[:, 0],
         proj_bd[:, 1],
         c="#d62728",  # solid red
         s=24,
-        alpha=0.75,
-        label="backdoor (successful)",
+        alpha=0.8,
+        label="poisoned",
         marker="o",
         linewidths=0,
         zorder=1,
@@ -158,13 +159,13 @@ def plot_latent_separability(
 
     with open(stats_path, "w", encoding="utf-8") as f:
         f.write(f"method: {method}\n")
-        f.write(f"total_seen: {total_seen}\n")
-        f.write(f"total_success_kept: {clean_feats.shape[0]}\n")
-        f.write(f"total_backdoor_kept: {bd_feats.shape[0]}\n")
+        f.write(f"total_clean_seen: {total_clean_seen}\n")
+        f.write(f"total_poison_seen: {total_bd_seen}\n")
+        f.write(f"plotted_clean: {clean_feats.shape[0]}\n")
+        f.write(f"plotted_poison: {bd_feats.shape[0]}\n")
         f.write(f"mean_l2(clean_mean, bd_mean): {mean_l2:.6f}\n")
         f.write(f"clean_dispersion_from_clean_mean: {clean_disp:.6f}\n")
-        f.write(f"backdoor_dispersion_from_clean_mean: {bd_disp:.6f}\n")
-        f.write(f"success_rate_over_seen: {total_success / max(total_seen,1):.6f}\n")
+        f.write(f"poison_dispersion_from_clean_mean: {bd_disp:.6f}\n")
 
     return {
         "fig_path": fig_path,
