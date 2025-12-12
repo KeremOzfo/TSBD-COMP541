@@ -329,7 +329,7 @@ def epoch_marksman(
 
     alpha = getattr(args, "marksman_alpha", 1.0)
     beta = getattr(args, "marksman_beta", 0.0)
-    update_T = getattr(args, "marksman_update_T", getattr(args, "marksman_k", 1))
+    update_T = getattr(args, "marksman_update_T", 1)
     num_classes = getattr(args, "numb_class", getattr(args, "num_class", None))
     if num_classes is None:
         raise ValueError("args.num_class (or args.numb_class) is required for Marksman training")

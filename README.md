@@ -3,8 +3,10 @@
 End-to-end code for training, attacking, and evaluating time-series classification models under backdoor threats. Supports clean training, basic patch backdoors, and dynamic trigger generators with surrogate training, across multiple architectures (TimesNet, LSTM, PatchTST, iTransformer, TimeMixer, CNN-based backdoor nets).
 
 Related papers:
-[Backdoor Attacks on Time Series: A Generative Approach](https://arxiv.org/abs/2211.07915)
-[Robust Multivariate Time-Series Forecasting: Adversarial Attacks and Defense Mechanisms](https://openreview.net/forum?id=ctmLBs8lITa)
+
+- [Backdoor Attacks on Time Series: A Generative Approach](https://arxiv.org/abs/2211.07915)
+- [Robust Multivariate Time-Series Forecasting: Adversarial Attacks and Defense Mechanisms](https://openreview.net/forum?id=ctmLBs8lITa)
+- [Revisiting Backdoor Attacks on Time Series Classification in the Frequency Domain](https://dl.acm.org/doi/abs/10.1145/3696410.3714827)
 
 ## What this repository does
 - Loads UEA-format time-series datasets (default: UWaveGestureLibrary) and builds data loaders with padding masks.
@@ -35,8 +37,12 @@ Outputs land in `Results/<dataset>_G-<trigger>_C-<model>_<hash>/` with:
 - `trigger_loss.png`, `trigger_accuracy.png`: curves for trigger+surrogate training (if used)
 - `poison_metrics.png`: CA/ASR across poisoning epochs
 - `examples/`: overlay plots of clean vs triggered signals (success/failure) plus `example_plots.txt` manifest with counts and paths
+- `latent/`: Shows latent seperability via PCA on the training set. [More infos](https://openreview.net/forum?id=_wSHsgrVali), [Code refence](https://github.com/Unispac/Circumventing-Backdoor-Defenses/blob/master/visualize.py)
 
 ## How the pipeline works
+
+![Backdoor Attack Pipeline Diagram](figures/backdoor_design.png)
+
 1) **Data**: `data_provider/` builds train/test splits with padding masks for variable-length series.
 2) **Clean train (optional)**: `clean_train_epoch` / `clean_test_epoch` in `epoch.py` train a clean classifier.
 3) **Trigger training (optional)**: `trigger_train_epoch` trains a trigger generator + surrogate classifier to maximize ASR while keeping surrogate clean accuracy.
