@@ -32,11 +32,11 @@ import time
 from parameters import args_parser
 
 target_model_dict = {
-    'TimesNet': TimesNet,
-    'LSTM': LSTM,
-    'PatchTST': PatchTST_Classifier,
-    'iTransformer': iTransformer,
-    'TimeMixer': TimeMixer
+    'timesnet': TimesNet,
+    'lstm': LSTM,
+    'patchtst': PatchTST_Classifier,
+    'itransformer': iTransformer,
+    'timemixer': TimeMixer
 }
 
 trigger_model_dict = {
@@ -74,7 +74,7 @@ def get_data(args, flag):
     data_set, data_loader = data_provider(args, flag)
     return data_set, data_loader
 
-def get_clean_model(args, train_data, test_data):
+def get_clean_model(args, train_data, test_data,model_type=None):
     # seq_len (padding mask için)
     args.seq_len = max(train_data.max_seq_len, test_data.max_seq_len)
 
@@ -88,7 +88,10 @@ def get_clean_model(args, train_data, test_data):
     args.num_class = int(train_data.labels_df.nunique().values[0])
 
     # Model init
-    model = target_model_dict[args.model](args).float().to(args.device)
+    if model_type is not None:
+        model = target_model_dict[model_type.lower()](args).float().to(args.device)
+    else:
+        model = target_model_dict[args.model.lower()](args).float().to(args.device)
 
     return model
 
@@ -433,7 +436,7 @@ def training_with_poissoned_data(args, trigger_model):
         # If trigger_model is a placeholder string, create the actual model
         if trigger_model == "placeholder":
             # Use trigger model from dictionary based on surrogate_type
-            if args.surrogate_type in trigger_model_dict:
+            if args.surrogate_model in trigger_model_dict:
                 print(f"Creating {args.surrogate_type} trigger model...")
                 trigger_model = trigger_model_dict[args.surrogate_type](args).to(args.device)
             else:
@@ -441,7 +444,7 @@ def training_with_poissoned_data(args, trigger_model):
                                f"Available options: {list(trigger_model_dict.keys())}")
         
         # Create a surrogate model for trigger training
-        surrogate_model = get_clean_model(args, full_train_data, test_data)
+        surrogate_model = get_clean_model(args, full_train_data, test_data,model_type=args.surrogate_model)
         
         # Optionally warmup the surrogate
         if args.warmup_epochs > 0:

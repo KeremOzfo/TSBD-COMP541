@@ -4,19 +4,103 @@ import torch.nn as nn
 def args_parser():
     parser = argparse.ArgumentParser(description="TimesNet Clean + Backdoor Training Pipeline")
 
-    # ---------------- TASK CONFIGURATION ----------------
-    parser.add_argument('--train_epochs', type=int, default=5,
-                        help='number of epochs for clean training')
+    # ==================== GENERAL SETUP ====================
+    parser.add_argument('--gpu_id', type=str, default='cuda:0',
+                        help='GPU device ID')
+    parser.add_argument('--data', type=str, default='UEA',
+                        help='dataset type (UEA for UWave / UEA datasets)')
     parser.add_argument('--task_name', type=str, default='classification',
                         help='task type (classification, forecasting, etc.)')
+    parser.add_argument('--mode', type=str, default='clean',
+                        choices=['clean', 'basic', 'marksman', 'dynamic'],
+                        help='training mode')
+    parser.add_argument('--model', type=str, default='TimesNet',
+                        choices=['TimesNet', 'LSTM', 'PatchTST', 'iTransformer', 'TimeMixer'],
+                        help='main model architecture to use')
 
-    # ---------------- SEQUENCE LENGTHS ----------------
+    # ==================== DATASET CONFIGURATION ====================
+    parser.add_argument('--root_path', type=str, default='./dataset/UWaveGestureLibrary',
+                        help='dataset root directory')
+    parser.add_argument('--batch_size', type=int, default=32,
+                        help='batch size for training')
+    parser.add_argument('--num_workers', type=int, default=4,
+                        help='dataloader workers')
+    parser.add_argument('--drop_last', type=bool, default=False,
+                        help='drop last incomplete batch')
+
+    # ==================== SEQUENCE LENGTHS ====================
+    parser.add_argument('--seq_len', type=int, default=256,
+                        help='input sequence length')
     parser.add_argument('--label_len', type=int, default=0,
                         help='start token length for decoder input')
     parser.add_argument('--pred_len', type=int, default=0,
                         help='prediction sequence length (0 for classification)')
 
-    # ---------------- TIMESNET MODEL CONFIG ----------------
+    # ==================== CLEAN TRAINING PHASE ====================
+    parser.add_argument('--train_epochs', type=int, default=5,
+                        help='number of epochs for clean training')
+    parser.add_argument('--lr', type=float, default=1e-3,
+                        help='learning rate for main model')
+    parser.add_argument('--clean_pretrain_epochs', type=int, default=5,
+                        help='number of clean pretraining epochs before poisoning')
+    parser.add_argument('--clean_data_ratio', type=float, default=1.0,
+                        help='fraction of dataset used for clean pretraining before poisoning')
+
+    # ==================== TRIGGER MODEL TRAINING PHASE ====================
+    parser.add_argument('--Tmodel', type=str, default='cnn',
+                        choices=['itst', 'patchtst', 'cnn', 'timesnet'],
+                        help='trigger model architecture')
+    parser.add_argument('--surrogate_model', type=str, default='timesnet',
+                        choices=['timesnet', 'cnn', 'patchTST', 'itst'],
+                        help='surrogate classifier model type for trigger training')
+    parser.add_argument('--trigger_epochs', type=int, default=5,
+                        help='number of epochs for training the trigger model')
+    parser.add_argument('--trigger_lr', type=float, default=1e-3,
+                        help='learning rate for trigger model')
+    parser.add_argument('--trigger_opt', type=str, default='adam',
+                        help='optimizer for trigger model')
+    parser.add_argument('--surrogate_lr', type=float, default=1e-3,
+                        help='learning rate for surrogate trigger model')
+    parser.add_argument('--surrogate_opt', type=str, default='adam',
+                        help='optimizer for surrogate trigger model')
+    parser.add_argument('--surrogate_L2_penalty', type=float, default=0.0,
+                        help='L2 regularization penalty for surrogate model')
+    parser.add_argument('--warmup_epochs', type=int, default=0,
+                        help='warm-up epochs for surrogate trigger model')
+    parser.add_argument('--marksman_update_T', type=int, default=1,
+                        help='update interval T for Marksman training')
+    parser.add_argument('--marksman_alpha', type=float, default=0.5,
+                        help='alpha parameter for Marksman training')
+    parser.add_argument('--marksman_beta', type=float, default=0,
+                        help='beta parameters for Marksman training')
+    parser.add_argument('--poisoning_ratio_train', type=float, default=0.1,
+                        help='poisoning ratio during trigger training (for diversity mode)')
+
+    # ==================== DATA POISONING PHASE ====================
+    parser.add_argument('--poisoning_ratio', type=float, default=0.1,
+                        help='percentage of training samples to poison')
+    parser.add_argument('--target_label', type=int, default=0,
+                        help='backdoor attack target label')
+    parser.add_argument('--clip_ratio', type=float, default=0.1,
+                        help='basic patch trigger magnitude')
+    parser.add_argument('--freq_lambda', type=float, default=0.05,
+                        help='perturbation scale for frequency heatmap estimation')
+    parser.add_argument('--freq_max_bins', type=int, default=256,
+                        help='maximum frequency bins for heatmap estimation')
+
+    # ==================== MODEL POISONING PHASE ====================
+    parser.add_argument('--bd_train_epochs', type=int, default=5,
+                        help='number of backdoor training epochs (training main model with poisoned data)')
+
+    # ==================== LOGGING AND VISUALIZATION ====================
+    parser.add_argument('--latent_method', type=str, default='pca',
+                        choices=['pca', 'tsne'],
+                        help='method for latent space visualization')
+    parser.add_argument('--latent_max_points', type=int, default=2000,
+                        help='maximum points to use for latent separability plotting')
+
+    # ==================== MODEL-SPECIFIC CONFIGURATIONS ====================
+    # ---------------- TimesNet Model Config ----------------
     parser.add_argument('--top_k', type=int, default=3,
                         help='top-k frequencies to select (default: 3, reduced from 5)')
     parser.add_argument('--num_kernels', type=int, default=4,
@@ -28,7 +112,7 @@ def args_parser():
     parser.add_argument('--freq', type=str, default='h',
                         help='frequency for time features encoding')
 
-    # ---------------- PATCHTST MODEL CONFIG ----------------
+    # ---------------- PatchTST Model Config ----------------
     parser.add_argument('--d_model', type=int, default=64,
                         help='model dimension')
     parser.add_argument('--d_ff', type=int, default=128,
@@ -48,7 +132,7 @@ def args_parser():
     parser.add_argument('--stride', type=int, default=8,
                         help='stride for patch extraction')
 
-    # ---------------- TimeMixer MODEL CONFIG ----------------
+    # ---------------- TimeMixer Model Config ----------------
     parser.add_argument('--down_sampling_layers', type=int, default=1)
     parser.add_argument('--down_sampling_window', type=int, default=2)
     parser.add_argument('--down_sampling_method', type=str, default='avg',
@@ -59,76 +143,7 @@ def args_parser():
     parser.add_argument('--decomp_method', type=str, default='moving_avg',
                         choices=['moving_avg', 'dft_decomp'])
 
-    # ---------------- DATASET ----------------
-    parser.add_argument('--root_path', type=str, default='./dataset/UWaveGestureLibrary',
-                        help='dataset root directory')
-    parser.add_argument('--batch_size', type=int, default=32,
-                        help='batch size for training')
-    parser.add_argument('--num_workers', type=int, default=4,
-                        help='dataloader workers')
-    parser.add_argument('--drop_last', type=bool, default=False,
-                        help='drop last incomplete batch')
-
-    # ---------------- MODEL CONFIGURATION ----------------
-    parser.add_argument('--model', type=str, default='TimesNet',
-                    choices=['TimesNet', 'LSTM', 'PatchTST', 'iTransformer', 'TimeMixer'],
-                    help='model architecture to use')
-    parser.add_argument('--seq_len', type=int, default=256,
-                        help='input sequence length')
-    parser.add_argument('--enc_in', type=int, default=7,
-                        help='encoder input feature dimension')
-    parser.add_argument('--num_class', type=int, default=8,
-                        help='number of classes for classification')
-
-    # ---------------- DEVICE ------------------
-    parser.add_argument('--gpu_id', type=str, default='cuda:0',
-                        help='GPU id')
-
-    # ---------------- TRAINING (CLEAN) ----------------
-    parser.add_argument('--clean_pretrain_epochs', type=int, default=5,
-                        help='number of clean pretraining epochs before poisoning')
-
-    # ---------------- BACKDOOR TRAINING ----------------
-    parser.add_argument('--Tmodel', type=str, default='cnn',
-                    choices=['itst', 'patchtst', 'cnn', 'timesnet'],
-                    help='model architecture to use')
-    parser.add_argument('--bd_train_epochs', type=int, default=5,
-                        help='number of backdoor training epochs')
-
-    parser.add_argument('--mode', type=str, default='clean',
-                        choices=['clean', 'basic','marksman', 'dynamic'],
-                        help='training mode')
-    parser.add_argument('--marksman_update_T', type=int, default=1,
-                        help='update interval T for Marksman training')
-    parser.add_argument('--marksman_alpha', type=float, default=0.5,
-                        help='alpha parameter for Marksman training')
-    parser.add_argument('--marksman_beta', type=float, default=0,
-                        help='beta parameters for Marksman training')
-
-    # ---------------- BACKDOOR SETTINGS ----------------
-    parser.add_argument('--target_label', type=int, default=0,
-                        help='backdoor attack target label')
-    parser.add_argument('--poisoning_ratio', type=float, default=0.1,
-                        help='percentage of training samples to poison')
-    parser.add_argument('--clip_ratio', type=float, default=0.1,
-                        help='basic patch trigger magnitude')
-
-    # ---------------- SURROGATE MODEL ----------------
-    parser.add_argument('--surrogate_type', type=str, default='timesnet',
-                        choices=['none', 'timesnet', 'cnn', 'patchTST', 'itst'],
-                        help='surrogate classifier model type')
-    parser.add_argument('--surrogate_opt', type=str, default='adam',
-                        help='optimizer for surrogate trigger model')
-    parser.add_argument('--surrogate_L2_penalty', type=float, default=0.0,
-                        help='L2 regularization penalty for surrogate trigger model')
-    parser.add_argument('--warmup_epochs', type=int, default=0,
-                        help='warm-up epochs for surrogate trigger model')
-    parser.add_argument('--surrogate_lr', type=float, default=1e-3,
-                        help='learning rate for surrogate trigger model')
-    parser.add_argument('--trigger_epochs', type=int, default=5,
-                        help='number of epochs for training the trigger model')
-
-    # ---------------- BACKDOOR MODEL CONFIG ----------------
+    # ---------------- Backdoor Model Config ----------------
     parser.add_argument('--d_model_bd', type=int, default=32,
                         help='backdoor trigger model dimension (default: 32)')
     parser.add_argument('--d_ff_bd', type=int, default=64,
@@ -138,16 +153,11 @@ def args_parser():
     parser.add_argument('--n_heads_bd', type=int, default=4,
                         help='number of attention heads for backdoor model')
 
-    # ---------------- CLEAN DATA RATIO ----------------
-    parser.add_argument('--clean_data_ratio', type=float, default=1.0,
-                        help='fraction of dataset used for clean pretraining before poisoning')
-
-    # ---------------- LR FOR MAIN MODEL ----------------
-    parser.add_argument('--lr', type=float, default=1e-3,
-                        help='learning rate for main model')
-
-    parser.add_argument('--data', type=str, default='UEA',
-                        help='dataset type (UEA for UWave / UEA datasets)')
+    # ---------------- TimesFM Model Config ----------------
+    parser.add_argument('--freeze_backbone', type=bool, default=True,
+                        help='whether to freeze TimesFM backbone')
+    parser.add_argument('--unfreeze_last_n_layers', type=int, default=2,
+                        help='number of final TimesFM layers to unfreeze for fine-tuning')
 
     args = parser.parse_args()
     args.criterion = nn.CrossEntropyLoss()
