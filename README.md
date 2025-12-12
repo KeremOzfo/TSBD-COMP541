@@ -84,8 +84,17 @@ TimeSeries-Backdoor/
 └── README.md
 ```
 
-## Repro tips
-- Set `--seed` (add manually or set in code) and fix `num_workers` for determinism.
+## Trigger Model Key Differences 
+
+| Aspect | PatchTST Trigger | iTransformer Trigger |
+|--------|------------------|----------------------|
+| Architecture | Patch-based transformer with channel-independent patching | Inverted transformer treating channels as instances |
+| Key Mechanism | Divides time series into patches, processes with attention | Treats each time point as a variable, channels as batch |
+| Strengths | Efficient for long sequences, good locality | Better global dependencies, handles multivariate well |
+| Weaknesses | May lose some temporal continuity | Higher computational cost |
+| Trigger Generation | Learns patch perturbations | Learns channel-wise transformations |
+
+
 ```
 
 

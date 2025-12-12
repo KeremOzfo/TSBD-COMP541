@@ -203,15 +203,13 @@ def epoch_frequency_guided(
 
 
 def epoch_vanilla_training(trigger_model, surrogate_model, loader, args, optimizer_trigger, optimizer_surrogate):
-    """Train trigger generator and surrogate classifier (one epoch).
-    
-    Standard approach for training dynamic triggers:
-    1. Generate triggers for input samples
-    2. Train surrogate to:
-       - Classify clean samples correctly (maintains utility)
-       - Classify triggered samples as target label (backdoor effectiveness)
-    3. Update trigger generator to maximize backdoor success
-    
+    """Train trigger network and surrogate network for one epoch:
+    Adversarial loss:
+    $ L_{adv}= \sum_{X \in \mathcal{D}_{i}} L_{CE}(F_{cl}(F_{tr}(X; \boldsymbol{\theta}_{tr}, \delta); \boldsymbol{\theta}_{cl}), \tilde{y})$ 
+    Clean loss:
+    $L_{clean}= \sum_{X \in \mathcal{D}_{i}} L_{CE}(F_{cl}(X;\boldsymbol{\theta}_{cl}),y)$
+    Objective is to minimize $ L_{adv} + L_{clean} $
+
     Args:
         trigger_model: Trigger generator network
         surrogate_model: Surrogate classifier

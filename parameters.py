@@ -41,8 +41,6 @@ def args_parser():
                         help='number of epochs for clean training')
     parser.add_argument('--lr', type=float, default=1e-3,
                         help='learning rate for main model')
-    parser.add_argument('--clean_pretrain_epochs', type=int, default=5,
-                        help='number of clean pretraining epochs before poisoning')
     parser.add_argument('--clean_data_ratio', type=float, default=1.0,
                         help='fraction of dataset used for clean pretraining before poisoning')
 

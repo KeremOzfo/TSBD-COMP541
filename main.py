@@ -158,7 +158,13 @@ def training_with_clean_data(args):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     
     best_acc = 0.0
-    acc_list = []
+    # Training history for logging
+    train_history = {
+        "train_loss": [],
+        "test_loss": [],
+        "train_acc": [],
+        "test_acc": [],
+    }
     
     print(f"\nStarting training for {args.train_epochs} epochs:\n")
     
@@ -169,7 +175,11 @@ def training_with_clean_data(args):
         # Test
         test_loss, test_acc = clean_test_epoch(model, test_loader, args)
         
-        acc_list.append(test_acc)
+        # Record history
+        train_history["train_loss"].append(train_loss)
+        train_history["test_loss"].append(test_loss)
+        train_history["train_acc"].append(train_acc)
+        train_history["test_acc"].append(test_acc)
         
         if test_acc > best_acc:
             best_acc = test_acc
@@ -178,7 +188,7 @@ def training_with_clean_data(args):
               f"Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f} | "
               f"Test Loss={test_loss:.4f}, Test Acc={test_acc:.4f}")
     
-    final_acc = acc_list[-1]
+    final_acc = train_history["test_acc"][-1]
     
     print("\n")
     print("CLEAN TRAINING COMPLETED")
@@ -186,8 +196,8 @@ def training_with_clean_data(args):
     print(f"Best Test Accuracy: {best_acc*100:.2f}%")
     print("\n")
     
-    # Log results
-    log_result_clean(args, final_acc)
+    # Log results with training curves
+    log_result_clean(args, final_acc, train_history=train_history)
     
     return final_acc, model
 

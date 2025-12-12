@@ -20,9 +20,6 @@ if __name__ == '__main__':
         ['--model', 'PatchTST', '--root_path', './dataset/UWaveGestureLibrary', '--gpu_id', 'cuda:0'],
         ['--model', 'TimesNet', '--root_path', './dataset/AnotherDataset', '--gpu_id', 'cuda:1'],  # If you have another dataset/GPU
         ['--model', 'PatchTST', '--root_path', './dataset/AnotherDataset', '--gpu_id', 'cuda:1'],
-        # Add more combos, e.g., varying poisoning_ratio, epochs, etc.
-        ['--model', 'LSTM', '--root_path', './dataset/UWaveGestureLibrary', '--poisoning_ratio', '0.05', '--gpu_id', 'cuda:0'],
-        ['--model', 'LSTM', '--root_path', './dataset/UWaveGestureLibrary', '--poisoning_ratio', '0.1', '--gpu_id', 'cuda:0'],
     ]
 
     # Number of parallel processes (match your CPU cores or GPUs)
