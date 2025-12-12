@@ -98,6 +98,12 @@ def args_parser():
     parser.add_argument('--mode', type=str, default='clean',
                         choices=['clean', 'basic','marksman', 'dynamic'],
                         help='training mode')
+    parser.add_argument('--marksman_update_T', type=int, default=1,
+                        help='update interval T for Marksman training')
+    parser.add_argument('--marksman_alpha', type=float, default=0.5,
+                        help='alpha parameter for Marksman training')
+    parser.add_argument('--marksman_beta', type=float, default=0,
+                        help='beta parameters for Marksman training')
 
     # ---------------- BACKDOOR SETTINGS ----------------
     parser.add_argument('--target_label', type=int, default=0,
@@ -109,9 +115,12 @@ def args_parser():
 
     # ---------------- SURROGATE MODEL ----------------
     parser.add_argument('--surrogate_type', type=str, default='timesnet',
-                        choices=['none', 'timesnet', 'cnn', 'patchTST', 'itst', 'bdmlp', 'timesba'],
-                        help='trigger model type')
-
+                        choices=['none', 'timesnet', 'cnn', 'patchTST', 'itst'],
+                        help='surrogate classifier model type')
+    parser.add_argument('--surrogate_opt', type=str, default='adam',
+                        help='optimizer for surrogate trigger model')
+    parser.add_argument('--surrogate_L2_penalty', type=float, default=0.0,
+                        help='L2 regularization penalty for surrogate trigger model')
     parser.add_argument('--warmup_epochs', type=int, default=0,
                         help='warm-up epochs for surrogate trigger model')
     parser.add_argument('--surrogate_lr', type=float, default=1e-3,
