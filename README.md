@@ -2,11 +2,18 @@
 
 End-to-end code for training, attacking, and evaluating time-series classification models under backdoor threats. Supports clean training, basic patch backdoors, and dynamic trigger generators with surrogate training, across multiple architectures (TimesNet, LSTM, PatchTST, iTransformer, TimeMixer, CNN-based backdoor nets).
 
-Related papers:
+References for Backdoor framework:
 
 - [Backdoor Attacks on Time Series: A Generative Approach](https://arxiv.org/abs/2211.07915)
 - [Robust Multivariate Time-Series Forecasting: Adversarial Attacks and Defense Mechanisms](https://openreview.net/forum?id=ctmLBs8lITa)
 - [Revisiting Backdoor Attacks on Time Series Classification in the Frequency Domain](https://dl.acm.org/doi/abs/10.1145/3696410.3714827)
+
+References for time series models:
+- [A TIME SERIES IS WORTH 64 WORDS: LONG-TERM FORECASTING WITH TRANSFORMERS](https://arxiv.org/pdf/2211.14730)
+- [TIMESNET: TEMPORAL 2D-VARIATION MODELING FOR GENERAL TIME SERIES ANALYSIS](https://arxiv.org/pdf/2210.02186)
+
+
+
 
 ## What this repository does
 - Loads UEA-format time-series datasets (default: UWaveGestureLibrary) and builds data loaders with padding masks.

@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import numpy as np
 from copy import deepcopy
 import functools
@@ -42,12 +43,43 @@ target_model_dict = {
 trigger_model_dict = {
     'timesnet': Bd_TimesNet,
     'cnn': bd_CNN,
-    'patchTST': Bd_PatchTST,
+    'patchtst': Bd_PatchTST,
     'itst': Bd_Inverted
 }
 
 def trigger_train_epoch_global():
     return
+
+
+def select_least_used_gpu():
+    """Select the CUDA device with the least used memory.
+    
+    Returns:
+        torch.device: The device with least used memory, or CPU if no CUDA available.
+    """
+    if not torch.cuda.is_available():
+        return torch.device('cpu')
+    
+    num_devices = torch.cuda.device_count()
+    if num_devices == 1:
+        return torch.device('cuda:0')
+    
+    # Get memory usage for each device
+    device_memory_usage = []
+    for i in range(num_devices):
+        try:
+            free, total = torch.cuda.mem_get_info(i)
+            used = total - free
+            device_memory_usage.append((i, used))
+        except Exception as e:
+            # If we can't get memory info, assume device is available with 0 usage
+            device_memory_usage.append((i, 0))
+    
+    # Sort by memory usage (ascending) and return the device with least usage
+    device_memory_usage.sort(key=lambda x: x[1])
+    least_used_device_id = device_memory_usage[0][0]
+    
+    return torch.device(f'cuda:{least_used_device_id}')
 
 
 def subset_dataset(dataset, ratio):
@@ -141,10 +173,6 @@ def training_with_clean_data(args):
     print(f"Model: {args.model}")
     print(f"Dataset: {args.root_path}")
     print("\n")
-    
-    # Device setup
-    args.device = torch.device(args.gpu_id if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {args.device}")
     
     # Load data
     train_data, train_loader = get_data(args, 'train')
@@ -426,9 +454,6 @@ def training_with_poissoned_data(args, trigger_model):
     print("BACKDOOR TRAINING PIPELINE")
     print("="*60 + "\n")
     
-    # Device setup
-    args.device = torch.device(args.gpu_id if torch.cuda.is_available() else "cpu")
-    
     # Load data
     full_train_data, full_train_loader = get_data(args, 'train')
     test_data, test_loader = get_data(args, 'test')
@@ -550,7 +575,8 @@ if __name__ == "__main__":
     #set_seed(42) # for reproducibility, currently no need to use
     
     # Set device early so models can be loaded properly
-    args.device = torch.device(args.gpu_id if torch.cuda.is_available() else "cpu")
+    args.device = select_least_used_gpu()
+    print(f"Using device: {args.device}")
     train_data, train_loader = get_data(args, flag='train')
     test_data, test_loader = get_data(args, flag='test')
     args.seq_len = max(train_data.max_seq_len, test_data.max_seq_len)

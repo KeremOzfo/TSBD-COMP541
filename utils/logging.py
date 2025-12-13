@@ -1,7 +1,7 @@
 """
 Logging and visualization utilities for experiments.
 
-- log_result_clean: append JSONL row for clean runs.
+- log_result_clean: save args, final metrics, and training curves for clean runs.
 - log_all: record args, final metrics, plots for trigger/model training, and
   backdoor examples using plot_backdoor_cases.
 """
@@ -12,33 +12,129 @@ import time
 import hashlib
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from utils.plot import plot_backdoor_cases
 from utils.latent_sep import plot_latent_separability
+from utils.gradcam import (
+    compute_time_cam,
+    compute_time_cam_map,
+    plot_time_gradcam,
+    plot_time_gradcam_map,
+    pad_or_truncate,
+)
 
 
-def log_result_clean(path: str, info: Dict[str, Any]) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    row = dict(info)
-    row["timestamp"] = datetime.now().isoformat(timespec="seconds")
-    with open(path, "a", encoding="utf-8") as f:
+def log_result_clean(
+    args: Any,
+    final_acc: float,
+    train_history: Optional[Dict[str, List[float]]] = None,
+    save_dir: str | Path = "Results",
+    run_hash: Optional[str] = None,
+) -> Path:
+    """Log clean training results with args, metrics, and training curves.
+    
+    Args:
+        args: Training arguments
+        final_acc: Final test accuracy
+        train_history: Dict with keys like 'train_loss', 'test_loss', 'train_acc', 'test_acc'
+                       Each value is a list of per-epoch values
+        save_dir: Root directory for saving results
+        run_hash: Optional hash for run identification
+    
+    Returns:
+        Path to the experiment directory
+    """
+    save_root = Path(save_dir)
+    if run_hash is None:
+        hash_input = str(time.time())
+        run_hash = hashlib.md5(hash_input.encode()).hexdigest()[:8]
+    print(f"Run hash: {run_hash}")
+
+    dataset = os.path.basename(os.path.normpath(getattr(args, "root_path", "dataset")))
+    model_name = getattr(args, "model_name", getattr(args, "model", "model"))
+    exp_dir = save_root / f"{dataset}_clean_{model_name}_{run_hash}"
+    exp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write args and final metrics to txt
+    args_path = exp_dir / "args_and_results.txt"
+    best_acc = max(train_history.get("test_acc", [final_acc])) if train_history else final_acc
+    
+    with open(args_path, "w", encoding="utf-8") as f:
+        f.write(f"Run hash: {run_hash}\n")
+        f.write(f"Timestamp: {datetime.now().isoformat(timespec='seconds')}\n")
+        f.write(f"Mode: clean\n")
+        f.write("\n[Args]\n")
+        for k, v in sorted(vars(args).items()):
+            f.write(f"{k}: {v}\n")
+        f.write("\n[Final Metrics]\n")
+        f.write(f"Final Test Accuracy: {final_acc:.4f} ({final_acc*100:.2f}%)\n")
+        f.write(f"Best Test Accuracy: {best_acc:.4f} ({best_acc*100:.2f}%)\n")
+
+    # Also append to JSONL for easy aggregation
+    jsonl_path = save_root / "clean_results.jsonl"
+    row = {
+        "run_hash": run_hash,
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "dataset": dataset,
+        "model": model_name,
+        "final_acc": final_acc,
+        "best_acc": best_acc,
+        "train_epochs": getattr(args, "train_epochs", None),
+        "lr": getattr(args, "lr", None),
+        "batch_size": getattr(args, "batch_size", None),
+    }
+    with open(jsonl_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(row) + "\n")
+
+    # Plot training curves if history provided
+    if train_history:
+        # Loss curves
+        losses = {
+            "train_loss": np.asarray(train_history.get("train_loss", [])),
+            "test_loss": np.asarray(train_history.get("test_loss", [])),
+        }
+        losses = {k: v for k, v in losses.items() if v.size > 0}
+        if losses:
+            _plot_curve(losses, "Clean Training Loss", "Loss", exp_dir / "clean_loss.png")
+
+        # Accuracy curves
+        accs = {
+            "train_acc": np.asarray(train_history.get("train_acc", [])),
+            "test_acc": np.asarray(train_history.get("test_acc", [])),
+        }
+        accs = {k: v for k, v in accs.items() if v.size > 0}
+        if accs:
+            _plot_curve(accs, "Clean Training Accuracy", "Accuracy", exp_dir / "clean_accuracy.png")
+
+    print(f"Clean training results saved to: {exp_dir}")
+    return exp_dir
 
 
 def _plot_curve(values_dict: Dict[str, np.ndarray], title: str, ylabel: str, save_path: Path) -> None:
     """Plot multiple curves on one figure."""
     plt.figure(figsize=(8, 4))
+    
+    # Get the maximum length of all value arrays to set proper x-axis
+    max_epochs = max(len(vals) for vals in values_dict.values())
+    
     for name, vals in values_dict.items():
-        plt.plot(vals, label=name, linewidth=2)
+        # Use explicit x values (1-based epochs) to ensure integer ticks
+        epochs = list(range(1, len(vals) + 1))
+        plt.plot(epochs, vals, label=name, linewidth=2)
+    
     plt.title(title)
     plt.xlabel("Epoch")
     plt.ylabel(ylabel)
     plt.grid(True, alpha=0.3)
     plt.legend()
+    
+    # Ensure x-axis shows integer ticks only
+    plt.xticks(range(1, max_epochs + 1))
+    
     save_path.parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout()
     plt.savefig(save_path, dpi=200)
@@ -129,7 +225,7 @@ def log_all(
         if poison_accs:
             _plot_curve(poison_accs, "Poisoned Model Metrics", "Accuracy", exp_dir / "poison_metrics.png")
 
-    # Example plots using plot_backdoor_cases
+    # Example plots using plot_backdoor_cases and Grad-CAM overlays
     if sample_cases:
         manifest_path = exp_dir / "examples" / "example_plots.txt"
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -154,7 +250,9 @@ def log_all(
             total_samples = len(clean_inputs) if has_samples else 0
             preds_np = np.asarray(preds).ravel() if has_samples else np.asarray([])
             trues_np = np.asarray(trues).ravel() if has_samples else np.asarray([])
-            success_count = int(np.sum((preds_np == target_label) & (trues_np != target_label))) if has_samples else 0
+            success_mask = (preds_np == target_label) & (trues_np != target_label) if has_samples else np.asarray([])
+            success_indices = np.nonzero(success_mask)[0] if has_samples else []
+            success_count = int(success_mask.sum()) if has_samples else 0
             failure_count = int(np.sum((preds_np != target_label) & (trues_np != target_label))) if has_samples else 0
             non_target_truth = int(np.sum(trues_np != target_label)) if has_samples else 0
 
@@ -173,6 +271,44 @@ def log_all(
                 )
             else:
                 print("[log_all] No sample cases available to plot.")
+
+            # Grad-CAM overlays for successful backdoor examples
+            if has_samples and model is not None and len(success_indices) > 0:
+                gradcam_dir = exp_dir / "examples" / "gradcam"
+                gradcam_dir.mkdir(parents=True, exist_ok=True)
+                max_gradcam = min(3, len(success_indices))
+                for idx in success_indices[:max_gradcam]:
+                    # Skip if sample is missing
+                    if clean_inputs[idx] is None or triggered_inputs[idx] is None:
+                        continue
+
+                    clean_x = torch.tensor(clean_inputs[idx]).float()
+                    bd_x = torch.tensor(triggered_inputs[idx]).float()
+
+                    seq_len = getattr(args, "seq_len", clean_x.shape[0])
+                    clean_x = pad_or_truncate(clean_x, seq_len)
+                    bd_x = pad_or_truncate(bd_x, seq_len)
+
+                    device = getattr(args, "device", torch.device("cpu"))
+                    clean_cam = compute_time_cam(model, clean_x, target_label, device)
+                    bd_cam = compute_time_cam(model, bd_x, target_label, device)
+                    clean_cam_map = compute_time_cam_map(model, clean_x, target_label, device)
+                    bd_cam_map = compute_time_cam_map(model, bd_x, target_label, device)
+
+                    sample_id = None
+                    if sample_cases.get("sample_ids") is not None and idx < len(sample_cases.get("sample_ids")):
+                        sample_id = sample_cases.get("sample_ids")[idx]
+
+                    map_path = gradcam_dir / f"sample_{idx}_gradcam_map.png"
+                    plot_time_gradcam_map(
+                        clean_input=clean_x.cpu().numpy(),
+                        bd_input=bd_x.cpu().numpy(),
+                        clean_cam_map=clean_cam_map,
+                        bd_cam_map=bd_cam_map,
+                        target_label=target_label,
+                        save_path=map_path,
+                        sample_id=sample_id,
+                    )
 
             # Always write manifest, even if empty
             with open(manifest_path, "w", encoding="utf-8") as mf:
