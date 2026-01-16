@@ -20,7 +20,10 @@ def args_parser():
                         help='main model architecture to use')
     parser.add_argument('--use_pretrained_trigger', type=str, default=False,
                         choices=[True,False],
-                        help='use pre-trained trigger model')            
+                        help='use pre-trained trigger model')
+    parser.add_argument('--bd_type', type=str, default='all2one',
+                        choices=['all2one', 'all2all'],
+                        help='Trigger traning mode (all2one: fixed target, all2all: random target)')            
 
     # ==================== TESTING MODE CONFIGURATION ====================
     parser.add_argument('--trigger_model_path', type=str, default=None,
@@ -131,10 +134,6 @@ def args_parser():
                         help='number of heads for transformer-based mask generator')
     parser.add_argument('--mask_n_layers', type=int, default=2,
                         help='number of layers for transformer-based mask generator')
-    
-    parser.add_argument('--bd_type', type=str, default='all2one',
-                        choices=['all2one', 'all2all'],
-                        help='backdoor attack type: all2one (fixed target) or all2all (random target)')
     parser.add_argument('--attack_only_nontarget', type=bool, default=True,
                         help='if True, only attack samples that are not already in the target class')
 
@@ -149,6 +148,12 @@ def args_parser():
                         help='perturbation scale for frequency heatmap estimation')
     parser.add_argument('--freq_max_bins', type=int, default=256,
                         help='maximum frequency bins for heatmap estimation')
+    
+    # Silent Poisoning Configuration
+    parser.add_argument('--use_silent_poisoning', action='store_true', default=False,
+                        help='if set, use silent poisoning (clean-label backdoor); otherwise use normal poisoning')
+    parser.add_argument('--lambda_ratio', type=float, default=0.2,
+                        help='fraction of poisoned samples that keep original label (clean-label backdoor) in silent poisoning mode')
 
     # ==================== MODEL POISONING PHASE ====================
     parser.add_argument('--bd_train_epochs', type=int, default=5,

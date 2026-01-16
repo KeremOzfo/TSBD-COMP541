@@ -21,6 +21,7 @@ from utils.helper_data import get_data
 from utils.tools import create_optimizer
 from src.trigger_training_epochs import trigger_train_epoch, trigger_eval_epoch, train_mask_epoch
 from src.methods.inputaware_masking import epoch_inputaware_masking
+from src.data_poisoning import poison_with_trigger_all2one, silent_poison_with_trigger_all2one
 from test import clean_test, bd_test
 
 try:
@@ -613,112 +614,46 @@ def train_trigger_model_with_mask(trigger_model, surrogate_model, train_loader, 
 def poison_data(trigger_model, train_data, args, mask_model=None):
     """Apply triggers to training data to create poisoned samples.
     
+    Delegates to either normal or silent poisoning based on args.use_silent_poisoning.
+    
     Args:
         trigger_model (torch.nn): trained trigger generator
         train_data: Original training dataset
-        args: Arguments containing poisoning ratio and target label
+        args: Arguments containing poisoning configuration:
+            - use_silent_poisoning: if True, use silent poisoning (clean-label backdoor)
+            - poisoning_ratio: fraction of samples to poison
+            - target_label: target class for backdoor
+            - lambda_ratio: fraction keeping original labels (for silent mode)
+        mask_model: Optional mask model (for inputaware_masking method)
     
     Returns:
         poisoned_dataset: Dataset with poisoned samples
         poison_indices: List of poisoned sample indices
+        (For silent mode, also returns clean_label_indices and target_label_indices)
     """
     print("=== STEP 2: DATA POISONING ===")
-    print(f"Poisoning ratio: {args.poisoning_ratio*100:.1f}%")
-    print(f"Target label: {args.target_label}")
     
-    # Calculate number of samples to poison
-    total_samples = len(train_data)
-    num_poison = int(total_samples * args.poisoning_ratio)
+    # Check if using silent poisoning
+    use_silent = getattr(args, 'use_silent_poisoning', False)
     
-    if num_poison == 0:
-        print("No samples to poison (ratio too low)")
-        print("=== DATA POISONING SKIPPED ===")
-        return train_data, []
-    
-    import random
-    poison_indices = random.sample(range(total_samples), num_poison)
-    
-    print(f"Poisoning {num_poison} out of {total_samples} samples")
-    
-    # Make DataFrames writable
-    train_data.feature_df = train_data.feature_df.copy()
-    train_data.labels_df = train_data.labels_df.copy()
-    
-    # Apply triggers to selected samples
-    if trigger_model is not None:
-        trigger_model.eval()
-        print("Using dynamic trigger model to poison data...")
+    if use_silent:
+        # Use silent poisoning (clean-label backdoor)
+        print("Using SILENT POISONING mode (clean-label backdoor)")
+        train_data, poison_indices, clean_label_indices, target_label_indices = \
+            silent_poison_with_trigger_all2one(trigger_model, train_data, args)
+        
+        # Store additional indices for logging
+        args._clean_label_indices = clean_label_indices
+        args._target_label_indices = target_label_indices
+        
+        return train_data, poison_indices
     else:
-        print("Using basic patch trigger to poison data...")
-    
-    # Poison the dataset in-place by modifying data and labels
-    with torch.no_grad():
-        for idx in poison_indices:
-            # Get the sample
-            sample_data = train_data[idx]
-            
-            # Extract components based on dataset structure
-            if isinstance(sample_data, tuple):
-                x, y = sample_data[0], sample_data[1]
-            else:
-                x = sample_data
-                y = None
-            
-            # Convert to tensor if needed
-            if not isinstance(x, torch.Tensor):
-                x = torch.tensor(x, dtype=torch.float32)
-            
-            # Pad to seq_len if necessary (important for inverted models and others)
-            actual_len = x.shape[0]
-            if actual_len < args.seq_len:
-                padding = torch.zeros(args.seq_len - actual_len, x.shape[1], dtype=torch.float32)
-                x = torch.cat([x, padding], dim=0)
-            elif actual_len > args.seq_len:
-                x = x[:args.seq_len, :]  # Truncate if longer
-            
-            x = x.unsqueeze(0).to(args.device)  # Add batch dimension
-            x = x.float()  # Ensure float32
-            
-            # Apply trigger based on mode
-            if trigger_model is not None:
-                # Dynamic trigger using the trained trigger model
-                target_label = torch.tensor([args.target_label]).long().to(args.device)
-                
-                # Generate trigger pattern
-                pattern, trigger_clip = trigger_model(x, None, None, None, target_label)
-                
-                # Apply trigger with mask if available
-                if mask_model is not None:
-                    # Input-aware masking
-                    mask = mask_model(x)
-                    mask_binary = mask_model.threshold(mask)
-                    # Blending formula: x * (1 - mask) + pattern * mask
-                    x_poisoned = x * (1 - mask_binary) + trigger_clip * mask_binary
-                else:
-                    # Simple additive trigger
-                    x_poisoned = x + trigger_clip
-            else:
-                # Basic patch trigger (similar to epoch.py apply_trigger)
-                x_poisoned = x.clone()
-                x_poisoned[0, -5:, 0] += args.clip_ratio  # Apply basic patch
-            
-            # Update the dataset with poisoned sample
-            x_poisoned = x_poisoned.squeeze(0).cpu()
-            
-            # Truncate back to original length (remove padding if added)
-            if actual_len < args.seq_len:
-                x_poisoned = x_poisoned[:actual_len, :]
-            
-            # Modify the dataset entry
-            train_data.feature_df.loc[train_data.all_IDs[idx]] = x_poisoned.numpy()
-            
-            # Update label to target label
-            train_data.labels_df.loc[train_data.all_IDs[idx]] = args.target_label
-    
-    print(f"Successfully poisoned {num_poison} samples")
-    print("=== DATA POISONING COMPLETED ===")
-    
-    return train_data, poison_indices
+        # Use normal poisoning (all samples relabeled to target)
+        print("Using NORMAL POISONING mode (all samples -> target label)")
+        train_data, poison_indices = \
+            poison_with_trigger_all2one(trigger_model, train_data, args)
+        
+        return train_data, poison_indices
 
 
 def poison_model(model, trigger_model, train_loader, test_loader, args):
