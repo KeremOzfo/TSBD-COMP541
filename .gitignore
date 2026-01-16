@@ -1,3 +1,5 @@
 *etds*
 *.pyc
 dataset/
+dataset/*
+__pycache__/
