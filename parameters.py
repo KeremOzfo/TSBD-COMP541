@@ -150,8 +150,8 @@ def args_parser():
                         help='maximum frequency bins for heatmap estimation')
     
     # Silent Poisoning Configuration
-    parser.add_argument('--use_silent_poisoning', action='store_true', default=False,
-                        help='if set, use silent poisoning (clean-label backdoor); otherwise use normal poisoning')
+    parser.add_argument('--use_silent_poisoning', type=bool, default=False,
+                        help='if True, use silent poisoning (clean-label backdoor); if False, use normal poisoning')
     parser.add_argument('--lambda_ratio', type=float, default=0.2,
                         help='fraction of poisoned samples that keep original label (clean-label backdoor) in silent poisoning mode')
 

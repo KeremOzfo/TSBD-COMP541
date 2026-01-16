@@ -78,15 +78,28 @@ def poison_with_trigger_all2one(trigger_model, train_data, args):
             x = x.unsqueeze(0).to(args.device)  # Add batch dimension
             x = x.float()  # Ensure float32
             
+            # Store original length for variable-length sequences
+            original_len = x.shape[1]
+            
             # Apply trigger based on mode
             if trigger_model is not None:
                 # Dynamic trigger using the trained trigger model
                 target_label = torch.tensor([args.target_label]).to(args.device)
                 
-                # Generate trigger
-                _, trigger_clip = trigger_model(x, None, None, None, target_label)
+                # Pad input to seq_len if needed (for variable-length datasets)
+                if original_len < args.seq_len:
+                    x_padded = torch.zeros(1, args.seq_len, x.shape[2], device=args.device)
+                    x_padded[:, :original_len, :] = x
+                else:
+                    x_padded = x[:, :args.seq_len, :]
                 
-                # Apply trigger
+                # Generate trigger on padded input
+                _, trigger_clip = trigger_model(x_padded, None, None, None, target_label)
+                
+                # Extract trigger for original length only
+                trigger_clip = trigger_clip[:, :original_len, :]
+                
+                # Apply trigger to original (unpadded) data
                 x_poisoned = x + trigger_clip
             else:
                 # Basic patch trigger
@@ -201,15 +214,28 @@ def silent_poison_with_trigger_all2one(trigger_model, train_data, args):
             x = x.unsqueeze(0).to(args.device)  # Add batch dimension
             x = x.float()  # Ensure float32
             
+            # Store original length for variable-length sequences
+            original_len = x.shape[1]
+            
             # Apply trigger based on mode (all samples get trigger)
             if trigger_model is not None:
                 # Dynamic trigger using the trained trigger model
                 target_label = torch.tensor([args.target_label]).to(args.device)
                 
-                # Generate trigger
-                _, trigger_clip = trigger_model(x, None, None, None, target_label)
+                # Pad input to seq_len if needed (for variable-length datasets)
+                if original_len < args.seq_len:
+                    x_padded = torch.zeros(1, args.seq_len, x.shape[2], device=args.device)
+                    x_padded[:, :original_len, :] = x
+                else:
+                    x_padded = x[:, :args.seq_len, :]
                 
-                # Apply trigger
+                # Generate trigger on padded input
+                _, trigger_clip = trigger_model(x_padded, None, None, None, target_label)
+                
+                # Extract trigger for original length only
+                trigger_clip = trigger_clip[:, :original_len, :]
+                
+                # Apply trigger to original (unpadded) data
                 x_poisoned = x + trigger_clip
             else:
                 # Basic patch trigger
