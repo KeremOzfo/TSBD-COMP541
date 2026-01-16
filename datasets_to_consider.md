@@ -1,0 +1,16 @@
+LLST
+Epilepsy
+JapaneseVowels
+Haptics
+PhonemeSpectra
+UWaveGestureLibrary
+BasicMotions
+Strawberry
+Cricket
+ElectricDevices
+CharacterTrajectories
+SelfRegulationSCP1
+ECG5000
+MotorImagery
+Handwriting
+SharePriceIncrease
