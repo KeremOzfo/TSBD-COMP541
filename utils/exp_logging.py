@@ -228,7 +228,10 @@ def log_all(
             _plot_curve(poison_accs, "Poisoned Model Metrics", "Accuracy", exp_dir / "poison_metrics.png")
 
     # Example plots using plot_backdoor_cases and Grad-CAM overlays
-    if sample_cases:
+    # Only save if save_test_samples is True (default: True)
+    save_test_samples = getattr(args, 'save_test_samples', True)
+    
+    if sample_cases and save_test_samples:
         manifest_path = exp_dir / "examples" / "example_plots.txt"
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -331,6 +334,8 @@ def log_all(
             print(f"[log_all] Failed to plot backdoor cases: {exc}")
             with open(manifest_path, "w", encoding="utf-8") as mf:
                 mf.write(f"Plotting failed: {exc}\n")
+    elif sample_cases and not save_test_samples:
+        print("[log_all] Skipping test sample and GradCAM visualization (save_test_samples=False)")
 
     # Latent separability plot (optional) - save both PCA and t-SNE
     if model is not None and test_loader is not None:
@@ -443,10 +448,14 @@ def log_final_test_epoch(
         print("\n[1/2] No sample cases provided and run_bd_test=False, skipping...")
     
     # Log all results including PCA, t-SNE, GradCAM, sample cases
+    save_test_samples = getattr(args, 'save_test_samples', True)
     print("\n[2/2] Generating comprehensive visualizations and logs...")
     print("  - PCA and t-SNE plots (on training set)")
-    print("  - Sample backdoor cases (success/failure)")
-    print("  - GradCAM heatmaps")
+    if save_test_samples:
+        print("  - Sample backdoor cases (success/failure)")
+        print("  - GradCAM heatmaps")
+    else:
+        print("  - Skipping sample backdoor cases and GradCAM (save_test_samples=False)")
     print("  - Training curves and metrics")
     
     exp_dir = log_all(
