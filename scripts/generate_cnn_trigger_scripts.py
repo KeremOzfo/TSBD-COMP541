@@ -38,7 +38,8 @@ TRIGGER_MODELS = ['ccnn', 'ccnn_cae']
 MAIN_MODELS = ['TCN', 'TimesNet','lstm']
 
 # All methods except defeat and basic
-TRAINING_METHODS = ['vanilla', 'marksman', 'diversity', 'ultimate', 'frequency', 'inputaware', 'pureinputaware']
+#TRAINING_METHODS = ['vanilla', 'marksman', 'diversity', 'ultimate', 'frequency', 'inputaware', 'pureinputaware']
+TRAINING_METHODS = ['vanilla', 'marksman'] # check vanilla and marksman first
 
 # ==================== OPTIMIZER CONFIGURATIONS ====================
 OPTIMIZER_CONFIGS = {
