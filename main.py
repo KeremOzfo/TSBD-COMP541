@@ -113,8 +113,8 @@ if __name__ == "__main__":
             args=args,
             trigger_model=trigger_model,
             mask_model=mask_model if args.method == "inputaware_masking" else None,
-            max_success=8,
-            max_failure=8,
+            max_success=3,
+            max_failure=3,
         )
         print(f"Final CA: {clean_acc*100:.2f}%, ASR: {asr*100:.2f}%")
         

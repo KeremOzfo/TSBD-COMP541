@@ -160,6 +160,8 @@ def args_parser():
                         help='number of backdoor training epochs (training main model with poisoned data)')
 
     # ==================== LOGGING AND VISUALIZATION ====================
+    parser.add_argument('--save_test_samples', type=bool, default=False,
+                        help='if True, save test samples and GradCAM visualizations; if False, skip saving them')
     parser.add_argument('--latent_method', type=str, default='pca',
                         choices=['pca', 'tsne'],
                         help='method for latent space visualization')
