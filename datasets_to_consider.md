@@ -14,3 +14,4 @@ ECG5000
 MotorImagery
 Handwriting
 SharePriceIncrease
+Pendigits, FaceDetection,SpokenArabicDigits,WalkingSittingStanding --> For Latent
