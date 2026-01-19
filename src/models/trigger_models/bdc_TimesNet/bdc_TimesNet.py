@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.fft
 from layers.Embed import DataEmbedding
 from layers.Conv_Blocks import Inception_Block_V1
+from .layers.times_block_bd import TimesBlock
 
 
 class Model(nn.Module):

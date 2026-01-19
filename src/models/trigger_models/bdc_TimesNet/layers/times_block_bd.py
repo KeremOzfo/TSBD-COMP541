@@ -37,7 +37,7 @@ class TimesBlock(nn.Module):
 
         # period_list([topk]) -> topk significant frequency
         # period_weight([B, topk]) -> their amplitudes 
-        period_list, period_weight = FFT_for_Period(x, self.k)
+        period_list, period_weight = FFT_for_Period_BD(x, self.k)
 
         res = []
         for i in range(self.k):

@@ -3,7 +3,7 @@ import torch.fft
 """
 FFT Transformation function
 """
-def FFT_for_Period(x, k=2):
+def FFT_for_Period_BD(x, k=2):
     # xf shape [B, T, C], denoting the amplitude of frequency(T) given the datapiece at B,N
     xf = torch.fft.rfft(x, dim=1)
 
