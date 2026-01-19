@@ -250,6 +250,21 @@ def log_all(
                 and len(clean_inputs) > 0
             )
 
+            # Ensure all arrays have the same length (handle variable-length datasets)
+            if has_samples:
+                min_len = min(len(clean_inputs), len(triggered_inputs), len(preds), len(trues))
+                if min_len < len(clean_inputs) or min_len < len(triggered_inputs) or min_len < len(preds) or min_len < len(trues):
+                    print(f"[log_all] Warning: Truncating sample arrays to common length {min_len}")
+                    print(f"  Original lengths - clean: {len(clean_inputs)}, triggered: {len(triggered_inputs)}, preds: {len(preds)}, trues: {len(trues)}")
+                    clean_inputs = clean_inputs[:min_len]
+                    triggered_inputs = triggered_inputs[:min_len]
+                    preds = preds[:min_len]
+                    trues = trues[:min_len]
+                    if sample_cases.get("sample_ids") is not None:
+                        sample_ids_list = list(sample_cases.get("sample_ids"))
+                        if len(sample_ids_list) > min_len:
+                            sample_cases["sample_ids"] = sample_ids_list[:min_len]
+
             target_label = sample_cases.get("target_label", getattr(args, "target_label", 0))
 
             # Stats for diagnostics
@@ -284,6 +299,9 @@ def log_all(
                 gradcam_dir.mkdir(parents=True, exist_ok=True)
                 max_gradcam = min(3, len(success_indices))
                 for idx in success_indices[:max_gradcam]:
+                    # Skip if index is out of bounds (can happen with variable-length datasets)
+                    if idx >= len(clean_inputs) or idx >= len(triggered_inputs):
+                        continue
                     # Skip if sample is missing
                     if clean_inputs[idx] is None or triggered_inputs[idx] is None:
                         continue
