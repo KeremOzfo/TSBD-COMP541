@@ -22,21 +22,25 @@ import numpy as np
 from src.methods.utils import cal_accuracy
 
 
-def diversity_loss(x1, x2, g_x1, g_x2, epsilon=1e-6):
+def diversity_loss(x1, x2, g_x1, g_x2, epsilon=1e-3):
     """
-    Compute diversity enforcement loss.
+    Compute diversity enforcement loss (original implementation).
     
-    L_div = ||x - x'|| / ||g(x) - g(x')||
+    L_div = ||x - x'||_2 / (||g(x) - g(x')||_2 + epsilon)
     
-    Encourages trigger generator to produce diverse triggers for different inputs.
+    Uses MSE-based Euclidean distances.
     """
-    input_diff = x1 - x2
-    input_distances = torch.sqrt(torch.mean(input_diff ** 2, dim=(1, 2)) + epsilon)
+    # MSE distance for inputs: mean over spatial dims, then sqrt
+    mse_inputs = torch.mean((x1 - x2) ** 2, dim=(1, 2))
+    distance_inputs = torch.sqrt(mse_inputs + epsilon)
     
-    trigger_diff = g_x1 - g_x2
-    trigger_distances = torch.sqrt(torch.mean(trigger_diff ** 2, dim=(1, 2)) + epsilon)
-    
-    loss_div = input_distances / (trigger_distances + epsilon)
+    # MSE distance for triggers: mean over spatial dims, then sqrt
+    mse_triggers = torch.mean((g_x1 - g_x2) ** 2, dim=(1, 2))
+    distance_triggers = torch.sqrt(mse_triggers + epsilon)
+    distance_triggers = torch.clamp(distance_triggers, min=epsilon)
+
+    # Diversity loss: input distance / trigger distance
+    loss_div = distance_inputs / distance_triggers
     return torch.mean(loss_div)
 
 
@@ -97,7 +101,7 @@ def epoch_pure_input_aware(
     # Loss tracking
     loss_dict = {
         'L_clean': [], 'L_attack': [], 'L_cross': [], 
-        'L_div': [], 'L_reg': [], 'L_total': []
+        'L_ce': [], 'L_div': [], 'L_total': []
     }
     
     # Hyperparameters
@@ -168,12 +172,7 @@ def epoch_pure_input_aware(
                 opt_trig.zero_grad()
         
         # ============== GENERATE TRIGGERS ==============
-        # Use frozen model for classifier training stability
-        with torch.no_grad():
-            trigger_frozen, trigger_frozen_clip = bd_model_prev(batch_x, padding_mask, None, None, bd_labels)
-            trigger_frozen2, trigger_frozen2_clip = bd_model_prev(batch_x2, padding_mask2, None, None, bd_labels)
-        
-        # Current model triggers (for trigger generator training)
+        # Generate triggers with current model (for both forward pass and diversity loss)
         trigger_curr, trigger_curr_clip = bd_model(batch_x, padding_mask, None, None, bd_labels)
         trigger_curr2, trigger_curr2_clip = bd_model(batch_x2, padding_mask2, None, None, bd_labels)
         
@@ -181,13 +180,13 @@ def epoch_pure_input_aware(
         # Attack mode: B(x, g(x)) -> target class
         x_attack = batch_x[:num_attack]
         y_attack = bd_labels[:num_attack]
-        trig_attack = trigger_frozen_clip[:num_attack]
+        trig_attack = trigger_curr_clip[:num_attack]
         mask_attack = attack_mask[:num_attack]
         
         # Cross-trigger mode: B(x, g(x')) -> original class (nonreusability)
         x_cross = batch_x[num_attack:num_attack + num_cross]
         y_cross = label[num_attack:num_attack + num_cross]  # Original label!
-        trig_cross = trigger_frozen2_clip[num_attack:num_attack + num_cross]
+        trig_cross = trigger_curr2_clip[num_attack:num_attack + num_cross]
         mask_cross = attack_mask[num_attack:num_attack + num_cross]
         
         # Clean mode: x -> original class
@@ -195,16 +194,26 @@ def epoch_pure_input_aware(
         y_clean = label[num_attack + num_cross:]
         
         # ============== CLASSIFIER FORWARD PASS ==============
+        # Original implementation: concatenate all inputs for single forward pass
         # Attack samples with triggers
         bd_inputs = apply_trigger(x_attack, trig_attack, mask_attack)
-        pred_attack = surr_model(bd_inputs, padding_mask[:num_attack], None, None)
         
         # Cross-trigger samples (trigger from different input)
         cross_inputs = apply_trigger(x_cross, trig_cross, mask_cross)
-        pred_cross = surr_model(cross_inputs, padding_mask[num_attack:num_attack + num_cross], None, None)
         
-        # Clean samples
-        pred_clean = surr_model(x_clean, padding_mask[num_attack + num_cross:], None, None)
+        # Concatenate: [bd_inputs, cross_inputs, clean_inputs]
+        total_inputs = torch.cat([bd_inputs, cross_inputs, x_clean], dim=0)
+        total_padding_mask = torch.cat([padding_mask[:num_attack], 
+                                         padding_mask[num_attack:num_attack + num_cross],
+                                         padding_mask[num_attack + num_cross:]], dim=0)
+        
+        # Single forward pass
+        total_preds = surr_model(total_inputs, total_padding_mask, None, None)
+        
+        # Split predictions back
+        pred_attack = total_preds[:num_attack]
+        pred_cross = total_preds[num_attack:num_attack + num_cross]
+        pred_clean = total_preds[num_attack + num_cross:]
         
         # ============== COMPUTE LOSSES ==============
         # Classification losses
@@ -212,25 +221,34 @@ def epoch_pure_input_aware(
         loss_cross = args.criterion(pred_cross, y_cross.long().squeeze(-1))
         loss_clean = args.criterion(pred_clean, y_clean.long().squeeze(-1))
         
-        # Diversity loss: encourage different triggers for different inputs
-        loss_div = diversity_loss(batch_x, batch_x2, trigger_curr, trigger_curr2)
+        # Total classification loss
+        loss_ce = loss_clean + loss_attack + loss_cross
         
-        # L2 regularization on trigger magnitude
-        loss_reg = torch.mean(trigger_curr ** 2)
+        # Diversity loss: compare UNCLIPPED patterns (closer to original implementation)
+        # Original: inputs1[:num_bd] vs inputs2[num_bd:num_bd+num_bd]
+        # Use unclipped triggers to avoid tiny denominators after clipping
+        patterns1_for_div = trigger_curr[:num_attack]
+        patterns2_for_div = trigger_curr2[num_attack:num_attack + num_attack] if batch_x2.shape[0] >= 2*num_attack else trigger_curr2[:num_attack]
+        inputs1_for_div = batch_x[:num_attack]
+        inputs2_for_div = batch_x2[num_attack:num_attack + num_attack] if batch_x2.shape[0] >= 2*num_attack else batch_x2[:num_attack]
+        
+        loss_div = diversity_loss(inputs1_for_div, inputs2_for_div, patterns1_for_div, patterns2_for_div)
+        loss_div = loss_div * lambda_div
         
         # ============== TOTAL LOSS ==============
-        # Classifier learning: clean + attack + cross (equal weight)
-        loss_classifier = loss_clean + loss_attack + loss_cross
-        
-        # Trigger learning: attack success + diversity + regularization
-        loss_trigger = loss_attack + lambda_div * loss_div + lambda_reg * loss_reg
-        
-        # Combined loss for joint optimization
-        total = loss_classifier + loss_trigger
+        # Original implementation: just CE + diversity (no regularization)
+        total = loss_ce + loss_div
         
         # ============== BACKWARD PASS ==============
         if train:
             total.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'trigger_grad_clip') and args.trigger_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(bd_model.parameters(), args.trigger_grad_clip)
+            if hasattr(args, 'surrogate_grad_clip') and args.surrogate_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(surr_model.parameters(), args.surrogate_grad_clip)
+            
             if opt_class is not None:
                 opt_class.step()
             if opt_trig is not None:
@@ -242,7 +260,7 @@ def epoch_pure_input_aware(
         loss_dict['L_attack'].append(loss_attack.item())
         loss_dict['L_cross'].append(loss_cross.item())
         loss_dict['L_div'].append(loss_div.item())
-        loss_dict['L_reg'].append(loss_reg.item())
+        loss_dict['L_ce'].append(loss_ce.item())
         loss_dict['L_total'].append(total.item())
         
         # Store predictions

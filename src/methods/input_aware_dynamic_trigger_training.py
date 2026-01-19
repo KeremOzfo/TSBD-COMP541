@@ -263,6 +263,11 @@ def epoch_marksman_input_aware(
         
         if opt_class is not None and train:
             loss_class.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'surrogate_grad_clip') and args.surrogate_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(surr_model.parameters(), args.surrogate_grad_clip)
+            
             opt_class.step()
         
         # ============== PHASE 2: Train Trigger Generator ==============
@@ -303,6 +308,11 @@ def epoch_marksman_input_aware(
             surr_model.eval()  # Freeze classifier for trigger training
             bd_model.zero_grad()
             loss_trig.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'trigger_grad_clip') and args.trigger_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(bd_model.parameters(), args.trigger_grad_clip)
+            
             opt_trig.step()
         
         # ============== Logging ==============

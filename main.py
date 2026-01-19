@@ -6,6 +6,7 @@ Main Entry Point for TimeSeries Backdoor Attack
 - For testing pre-trained trigger: python main.py --mode test --trigger_model_path <path>
 """
 
+import os
 import torch
 import numpy as np
 import random
@@ -27,6 +28,7 @@ from utils.helper_train_test import reconfigure_model_for_data
 from data_provider.uea import collate_fn
 from utils.exp_logging import log_final_test_epoch
 from utils.helper_gpu import select_least_used_gpu
+from utils.auto_arch import apply_auto_bd_arch, apply_auto_batch_size, DatasetInfo
 
 
 def set_seed(seed=42):
@@ -59,6 +61,31 @@ if __name__ == "__main__":
     
     args.enc_in = train_data.feature_df.shape[1]
     args.num_class = len(train_data.class_names)
+
+    # Auto-select trigger architecture based on dataset complexity
+    if getattr(args, "auto_bd_arch", False):
+        dataset_name = os.path.basename(args.root_path.rstrip("/\\"))
+        fallback_info = DatasetInfo(
+            name=dataset_name,
+            seq_len=int(args.seq_len),
+            num_variates=int(args.enc_in),
+            num_classes=int(args.num_class),
+            num_train=int(len(train_data)),
+            num_test=int(len(test_data)),
+        )
+        apply_auto_bd_arch(args, dataset_name, args.dataset_info_path, fallback=fallback_info)
+
+    if getattr(args, "auto_batch_size", False):
+        dataset_name = os.path.basename(args.root_path.rstrip("/\\"))
+        fallback_info = DatasetInfo(
+            name=dataset_name,
+            seq_len=int(args.seq_len),
+            num_variates=int(args.enc_in),
+            num_classes=int(args.num_class),
+            num_train=int(len(train_data)),
+            num_test=int(len(test_data)),
+        )
+        apply_auto_batch_size(args, dataset_name, args.dataset_info_path, fallback=fallback_info)
     
     print(f"Train samples: {len(train_data)}, Test samples: {len(test_data)}")
     print(f"Number of classes: {args.num_class}")
@@ -113,8 +140,8 @@ if __name__ == "__main__":
             args=args,
             trigger_model=trigger_model,
             mask_model=mask_model if args.method == "inputaware_masking" else None,
-            max_success=3,
-            max_failure=3,
+            max_success=2,
+            max_failure=1,
         )
         print(f"Final CA: {clean_acc*100:.2f}%, ASR: {asr*100:.2f}%")
         

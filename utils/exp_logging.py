@@ -177,7 +177,8 @@ def log_all(
     dataset = os.path.basename(os.path.normpath(getattr(args, "root_path", "dataset")))
     model_name = getattr(args, "model_name", getattr(args, "model", "model"))
     trigger_name = getattr(args, "Tmodel", "trigger")
-    exp_dir = save_root / f"{dataset}_G-{trigger_name}_C-{model_name}_{run_hash}"
+    method_name = getattr(args, "method", "method") 
+    exp_dir = save_root / f"{dataset}_G-{trigger_name}_C-{model_name}_M-{method_name}_{run_hash}"
     exp_dir.mkdir(parents=True, exist_ok=True)
 
     # Write args and final metrics

@@ -146,6 +146,11 @@ def epoch_frequency_guided(
         if opt is not None and train:
             opt.zero_grad()
             loss.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'trigger_grad_clip') and args.trigger_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(bd_model.parameters(), args.trigger_grad_clip)
+            
             opt.step()
 
         total_loss.append(loss.item())

@@ -86,6 +86,11 @@ def epoch_marksman(
 
         if train and opt_cls is not None:
             loss_cls.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'surrogate_grad_clip') and args.surrogate_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(surr_model.parameters(), args.surrogate_grad_clip)
+            
             opt_cls.step()
 
         # -------- Trigger update (backdoor CE - beta * ||g||_2) --------
@@ -103,6 +108,11 @@ def epoch_marksman(
             loss_trig = args.criterion(pred_trig, bd_labels.long().squeeze(-1))
             loss_trig = loss_trig - beta * torch.mean(trigger ** 2)
             loss_trig.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'trigger_grad_clip') and args.trigger_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(trigger_model.parameters(), args.trigger_grad_clip)
+            
             opt_trig.step()
             trig_loss_val = loss_trig.detach().item()
 

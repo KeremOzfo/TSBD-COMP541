@@ -123,6 +123,13 @@ def epoch_diversity(bd_model,surr_model, loader1, args, loader2=None, opt=None,o
 
             if opt is not None:
                 loss.backward()
+                
+                # Gradient clipping
+                if hasattr(args, 'trigger_grad_clip') and args.trigger_grad_clip > 0:
+                    torch.nn.utils.clip_grad_norm_(bd_model.parameters(), args.trigger_grad_clip)
+                if hasattr(args, 'surrogate_grad_clip') and args.surrogate_grad_clip > 0:
+                    torch.nn.utils.clip_grad_norm_(surr_model.parameters(), args.surrogate_grad_clip)
+                
                 opt.step()
             if opt2 is not None:
                 opt2.step()

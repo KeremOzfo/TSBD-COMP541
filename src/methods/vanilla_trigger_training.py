@@ -97,6 +97,13 @@ def epoch_vanilla_trigger_training(
         
         if train and optimizer_trigger is not None and optimizer_surrogate is not None:
             loss.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'trigger_grad_clip') and args.trigger_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(trigger_model.parameters(), args.trigger_grad_clip)
+            if hasattr(args, 'surrogate_grad_clip') and args.surrogate_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(surrogate_model.parameters(), args.surrogate_grad_clip)
+            
             optimizer_trigger.step()
             optimizer_surrogate.step()
         

@@ -183,6 +183,11 @@ def train_auxiliary_logits(model, train_loader, args, selected_layers=None):
                 logits = aux_classifier(feat)
                 loss = criterion(logits, label.long().squeeze(-1))
                 loss.backward()
+                
+                # Gradient clipping
+                if hasattr(args, 'trigger_grad_clip') and args.trigger_grad_clip > 0:
+                    torch.nn.utils.clip_grad_norm_(aux_classifier.parameters(), args.trigger_grad_clip)
+                
                 optimizer.step()
                 
                 total_loss += loss.item()
@@ -555,6 +560,11 @@ def train_defeat(trigger_model, surrogate_model, train_loader, args, train_data=
             pred = surrogate_model(batch_x, padding_mask, None, None)
             loss = args.criterion(pred, label.long().squeeze(-1))
             loss.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'surrogate_grad_clip') and args.surrogate_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(surrogate_model.parameters(), args.surrogate_grad_clip)
+            
             optimizer_clean.step()
             
             total_loss += loss.item()

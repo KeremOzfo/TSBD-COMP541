@@ -32,8 +32,14 @@ def args_parser():
     # ==================== DATASET CONFIGURATION ====================
     parser.add_argument('--root_path', type=str, default='./dataset/BasicMotions',
                         help='dataset root directory')
+    parser.add_argument('--dataset_info_path', type=str, default='./scripts/dataset_info.csv',
+                        help='path to dataset_info.csv used for auto architecture selection')
     parser.add_argument('--batch_size', type=int, default=32,
                         help='batch size for training')
+    parser.add_argument('--trigger_batch_size', type=int, default=None,
+                        help='batch size for trigger training (defaults to batch_size if not set)')
+    parser.add_argument('--auto_batch_size', type=bool, default=True,
+                        help='if True, auto-select batch_size based on dataset_info.csv')
     parser.add_argument('--num_workers', type=int, default=4,
                         help='dataloader workers')
     parser.add_argument('--drop_last', type=bool, default=False,
@@ -76,6 +82,8 @@ def args_parser():
                         help='optimizer for trigger model')
     parser.add_argument('--trigger_weight_decay', type=float, default=0.0,
                         help='weight decay for trigger model optimizer')
+    parser.add_argument('--trigger_grad_clip', type=float, default=0.0,
+                        help='gradient clipping max norm for trigger optimizer (0 = no clipping)')
     parser.add_argument('--surrogate_lr', type=float, default=1e-3,
                         help='learning rate for surrogate trigger model')
     parser.add_argument('--surrogate_opt', type=str, default='adam',
@@ -83,6 +91,8 @@ def args_parser():
                         help='optimizer for surrogate trigger model')
     parser.add_argument('--surrogate_weight_decay', type=float, default=0.0,
                         help='weight decay for surrogate model optimizer')
+    parser.add_argument('--surrogate_grad_clip', type=float, default=0.0,
+                        help='gradient clipping max norm for surrogate optimizer (0 = no clipping)')
     parser.add_argument('--surrogate_L2_penalty', type=float, default=0.0,
                         help='L2 regularization penalty for surrogate model')
     parser.add_argument('--warmup_epochs', type=int, default=0,
@@ -158,6 +168,10 @@ def args_parser():
     # ==================== MODEL POISONING PHASE ====================
     parser.add_argument('--bd_train_epochs', type=int, default=5,
                         help='number of backdoor training epochs (training main model with poisoned data)')
+
+    # ==================== AUTO ARCHITECTURE SELECTION ====================
+    parser.add_argument('--auto_bd_arch', type=bool, default=True,
+                        help='if True, auto-select d_model_bd/d_ff_bd/e_layers_bd/n_heads_bd based on dataset_info.csv')
 
     # ==================== LOGGING AND VISUALIZATION ====================
     parser.add_argument('--save_test_samples', type=bool, default=False,

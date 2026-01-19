@@ -21,7 +21,7 @@ import numpy as np
 from src.methods.utils import cal_accuracy
 
 
-def mask_diversity_loss(x1, x2, mask1, mask2, epsilon=1e-6):
+def mask_diversity_loss(x1, x2, mask1, mask2, epsilon=1e-3):
     """
     Diversity loss for masks: encourages different inputs to have different masks.
     
@@ -33,12 +33,15 @@ def mask_diversity_loss(x1, x2, mask1, mask2, epsilon=1e-6):
     input_diff = x1 - x2
     input_distances = torch.sqrt(torch.mean(input_diff ** 2, dim=(1, 2)) + epsilon)
     
-    # Mask distance
-    mask_diff = mask1 - mask2
+    # Mask distance (use thresholded masks to match reference behavior)
+    mask1_bin = (mask1 > 0.5).float()
+    mask2_bin = (mask2 > 0.5).float()
+    mask_diff = mask1_bin - mask2_bin
     mask_distances = torch.sqrt(torch.mean(mask_diff ** 2, dim=(1, 2)) + epsilon)
     
     # Ratio: large input difference should lead to large mask difference
-    loss_div = input_distances / (mask_distances + epsilon)
+    mask_distances = torch.clamp(mask_distances, min=epsilon)
+    loss_div = input_distances / mask_distances
     return torch.mean(loss_div)
 
 
@@ -55,17 +58,21 @@ def mask_sparsity_loss(mask, density_target=0.032):
     return loss_norm
 
 
-def pattern_diversity_loss(x1, x2, pattern1, pattern2, epsilon=1e-6):
+def pattern_diversity_loss(x1, x2, pattern1, pattern2, epsilon=1e-3):
     """
     Diversity loss for patterns: encourages different inputs to have different patterns.
+    Uses MSE-based Euclidean distances matching original implementation.
     """
-    input_diff = x1 - x2
-    input_distances = torch.sqrt(torch.mean(input_diff ** 2, dim=(1, 2)) + epsilon)
+    # MSE distance for inputs
+    mse_inputs = torch.mean((x1 - x2) ** 2, dim=(1, 2))
+    distance_inputs = torch.sqrt(mse_inputs + epsilon)
     
-    pattern_diff = pattern1 - pattern2
-    pattern_distances = torch.sqrt(torch.mean(pattern_diff ** 2, dim=(1, 2)) + epsilon)
-    
-    loss_div = input_distances / (pattern_distances + epsilon)
+    # MSE distance for patterns
+    mse_patterns = torch.mean((pattern1 - pattern2) ** 2, dim=(1, 2))
+    distance_patterns = torch.sqrt(mse_patterns + epsilon)
+    distance_patterns = torch.clamp(distance_patterns, min=epsilon)
+
+    loss_div = distance_inputs / distance_patterns
     return torch.mean(loss_div)
 
 
@@ -165,6 +172,9 @@ def train_mask_epoch(
         if train:
             loss.backward()
             if opt_mask is not None:
+                # Gradient clipping for mask optimizer
+                if hasattr(args, 'trigger_grad_clip') and args.trigger_grad_clip > 0:
+                    torch.nn.utils.clip_grad_norm_(mask_model.parameters(), args.trigger_grad_clip)
                 opt_mask.step()
         
         # Logging
@@ -225,7 +235,7 @@ def epoch_inputaware_masking(
     # Loss tracking
     loss_dict = {
         'L_clean': [], 'L_attack': [], 'L_cross': [],
-        'L_div_pattern': [], 'L_total': []
+        'L_ce': [], 'L_div_pattern': [], 'L_total': []
     }
     
     # Hyperparameters
@@ -320,26 +330,51 @@ def epoch_inputaware_masking(
         y_clean = label[num_attack + num_cross:]
         
         # ============== CLASSIFIER FORWARD PASS ==============
-        pred_attack = surr_model(bd_inputs, padding_mask[:num_attack], None, None)
-        pred_cross = surr_model(cross_inputs, padding_mask[num_attack:num_attack + num_cross], None, None)
-        pred_clean = surr_model(x_clean, padding_mask[num_attack + num_cross:], None, None)
+        # Concatenate all inputs for single forward pass (matches original implementation)
+        total_inputs = torch.cat([bd_inputs, cross_inputs, x_clean], dim=0)
+        total_padding_mask = torch.cat([padding_mask[:num_attack],
+                                         padding_mask[num_attack:num_attack + num_cross],
+                                         padding_mask[num_attack + num_cross:]], dim=0)
+        
+        # Single forward pass
+        total_preds = surr_model(total_inputs, total_padding_mask, None, None)
+        
+        # Split predictions back
+        pred_attack = total_preds[:num_attack]
+        pred_cross = total_preds[num_attack:num_attack + num_cross]
+        pred_clean = total_preds[num_attack + num_cross:]
         
         # ============== COMPUTE LOSSES ==============
         loss_attack = args.criterion(pred_attack, y_attack.long().squeeze(-1))
         loss_cross = args.criterion(pred_cross, y_cross.long().squeeze(-1))
         loss_clean = args.criterion(pred_clean, y_clean.long().squeeze(-1))
         
-        # Pattern diversity loss - use UNCLIPPED patterns for fair scale comparison
-        loss_div_pattern = pattern_diversity_loss(batch_x, batch_x2, patterns1_unclipped, patterns2_unclipped)
+        # Total classification loss
+        loss_ce = loss_clean + loss_attack + loss_cross
+        
+        # Pattern diversity loss - use UNCLIPPED patterns (closer to original implementation)
+        patterns1_for_div = patterns1_unclipped[:num_attack]
+        patterns2_for_div = patterns2_unclipped[num_attack:num_attack + num_attack] if batch_x2.shape[0] >= 2*num_attack else patterns2_unclipped[:num_attack]
+        inputs1_for_div = batch_x[:num_attack]
+        inputs2_for_div = batch_x2[num_attack:num_attack + num_attack] if batch_x2.shape[0] >= 2*num_attack else batch_x2[:num_attack]
+        
+        loss_div_pattern = pattern_diversity_loss(inputs1_for_div, inputs2_for_div, patterns1_for_div, patterns2_for_div)
+        loss_div_pattern = loss_div_pattern * lambda_div
         
         # ============== TOTAL LOSS ==============
-        loss_classifier = loss_clean + loss_attack + loss_cross
-        loss_trigger = loss_attack + lambda_div * loss_div_pattern
-        total = loss_classifier + loss_trigger
+        # Original implementation: CE + diversity only
+        total = loss_ce + loss_div_pattern
         
         # ============== BACKWARD PASS ==============
         if train:
             total.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'trigger_grad_clip') and args.trigger_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(bd_model.parameters(), args.trigger_grad_clip)
+            if hasattr(args, 'surrogate_grad_clip') and args.surrogate_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(surr_model.parameters(), args.surrogate_grad_clip)
+            
             if opt_class is not None:
                 opt_class.step()
             if opt_trig is not None:
@@ -350,6 +385,7 @@ def epoch_inputaware_masking(
         loss_dict['L_clean'].append(loss_clean.item())
         loss_dict['L_attack'].append(loss_attack.item())
         loss_dict['L_cross'].append(loss_cross.item())
+        loss_dict['L_ce'].append(loss_ce.item())
         loss_dict['L_div_pattern'].append(loss_div_pattern.item())
         loss_dict['L_total'].append(total.item())
         

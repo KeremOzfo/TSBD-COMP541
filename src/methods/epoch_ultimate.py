@@ -369,6 +369,11 @@ def epoch_combined(
         
         if train and opt_class is not None:
             loss_class.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'surrogate_grad_clip') and args.surrogate_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(surrogate_model.parameters(), args.surrogate_grad_clip)
+            
             opt_class.step()
         
         # ================================================================
@@ -416,6 +421,11 @@ def epoch_combined(
                         - beta * loss_magnitude)
             
             loss_trig.backward()
+            
+            # Gradient clipping
+            if hasattr(args, 'trigger_grad_clip') and args.trigger_grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(trigger_model.parameters(), args.trigger_grad_clip)
+            
             opt_trig.step()
             
             # Restore classifier gradients

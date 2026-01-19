@@ -346,6 +346,20 @@ def train_trigger_model(trigger_model, surrogate_model, train_loader, args, trai
         dict: Training results with losses and accuracies
     """
     print(f"=== STEP 1: TRIGGER MODEL TRAINING (method={args.method}) ===")
+
+    trigger_batch_size = getattr(args, 'trigger_batch_size', None)
+    if trigger_batch_size is None or trigger_batch_size <= 0:
+        trigger_batch_size = args.batch_size
+
+    if train_loader is not None and getattr(train_loader, 'batch_size', None) != trigger_batch_size:
+        train_loader = DataLoader(
+            train_loader.dataset,
+            batch_size=trigger_batch_size,
+            shuffle=True,
+            num_workers=args.num_workers,
+            drop_last=args.drop_last,
+            collate_fn=train_loader.collate_fn
+        )
     
     optimizer_trigger = create_optimizer(
         trigger_model.parameters(),
@@ -381,7 +395,7 @@ def train_trigger_model(trigger_model, surrogate_model, train_loader, args, trai
         from data_provider.uea import collate_fn
         loader2 = DataLoader(
             train_data,
-            batch_size=args.batch_size,
+            batch_size=trigger_batch_size,
             shuffle=True,
             num_workers=args.num_workers,
             drop_last=False,
