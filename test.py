@@ -19,7 +19,7 @@ from utils.helper_train_test import get_data, reconfigure_model_for_data, target
 from utils.tools import create_optimizer
 
 
-def apply_trigger(batch_x, label, args, trigger_model=None, mask_model=None):
+def apply_trigger(batch_x, label, args, trigger_model=None, mask_model=None, padding_mask=None):
     """Apply trigger to a batch of samples.
     
     Args:
@@ -28,6 +28,7 @@ def apply_trigger(batch_x, label, args, trigger_model=None, mask_model=None):
         args: Arguments with target_label and clip_ratio
         trigger_model: Trained trigger model (None for basic patch trigger)
         mask_model: Mask generator (for inputaware_masking method)
+        padding_mask: Padding mask (B, T) - 1 for valid positions, 0 for padded positions
     
     Returns:
         triggered_batch: Batch with triggers applied
@@ -39,7 +40,7 @@ def apply_trigger(batch_x, label, args, trigger_model=None, mask_model=None):
     if trigger_model is not None:
         trigger_model.eval()
         with torch.no_grad():
-            pattern, trigger_clip = trigger_model(batch_x, None, None, None, target_labels)
+            pattern, trigger_clip = trigger_model(batch_x, padding_mask, None, None, target_labels)
             
             # Apply mask if available
             if mask_model is not None:
@@ -102,10 +103,30 @@ def poison_data_with_trigger(trigger_model, train_data, args):
                 x = torch.tensor(x, dtype=torch.float32)
             
             x = x.unsqueeze(0).to(args.device).float()
+            original_len = x.shape[1]
             
             if trigger_model is not None:
                 target_label = torch.tensor([args.target_label]).to(args.device)
-                _, trigger_clip = trigger_model(x, None, None, None, target_label)
+                
+                # Pad input to seq_len if needed (for variable-length datasets)
+                if original_len < args.seq_len:
+                    x_padded = torch.zeros(1, args.seq_len, x.shape[2], device=args.device)
+                    x_padded[:, :original_len, :] = x
+                    # Create padding mask: 1 for valid positions, 0 for padded positions
+                    padding_mask = torch.zeros(1, args.seq_len, device=args.device)
+                    padding_mask[:, :original_len] = 1.0
+                else:
+                    x_padded = x[:, :args.seq_len, :]
+                    # No padding needed, all positions are valid
+                    padding_mask = torch.ones(1, args.seq_len, device=args.device)
+                
+                # Generate trigger with padding mask to avoid triggers on padded positions
+                _, trigger_clip = trigger_model(x_padded, padding_mask, None, None, target_label)
+                
+                # Extract trigger for original length only
+                trigger_clip = trigger_clip[:, :original_len, :]
+                
+                # Apply trigger to original (unpadded) data
                 x_poisoned = x + trigger_clip
             else:
                 x_poisoned = x.clone()
@@ -355,7 +376,7 @@ def bd_test(model, loader, args, trigger_model=None, mask_model=None, save_plot=
         target_labels = (torch.ones_like(label) * args.target_label).long().to(args.device)
 
         # Apply trigger to all samples
-        bd_batch_x, label = apply_trigger(batch_x, label, args, trigger_model, mask_model)
+        bd_batch_x, label = apply_trigger(batch_x, label, args, trigger_model, mask_model, padding_mask)
 
         with torch.no_grad():
             outs = model(batch_x, padding_mask, None, None)
@@ -442,7 +463,7 @@ def bd_test_with_samples(
         original_label = label.clone()
         target_labels = torch.ones_like(label) * args.target_label
 
-        bd_batch_x, label = apply_trigger(batch_x, label, args, trigger_model, mask_model)
+        bd_batch_x, label = apply_trigger(batch_x, label, args, trigger_model, mask_model, padding_mask)
 
         with torch.no_grad():
             outs = model(batch_x, padding_mask, None, None)

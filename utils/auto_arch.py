@@ -55,13 +55,13 @@ def choose_bd_arch(info: DatasetInfo) -> Dict[str, int | float | str]:
 
     # Heuristic tiers (small/medium/large/very large)
     # Relaxed thresholds to reduce xlarge selections
-    if score < 9.5:
+    if score < 10:
         d_model, n_heads, e_layers = 32, 2, 1
         tier = "small"
-    elif score < 12.0:
+    elif score < 14.0:
         d_model, n_heads, e_layers = 64, 4, 2
         tier = "medium"
-    elif score < 13.5:
+    elif score < 18.0:
         d_model, n_heads, e_layers = 96, 4, 3
         tier = "large"
     else:

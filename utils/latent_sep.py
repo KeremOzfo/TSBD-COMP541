@@ -191,7 +191,7 @@ def plot_latent_separability(
     plt.title(f"Latent separability ({method.upper()})")
     plt.legend()
     plt.tight_layout()
-    plt.savefig(fig_path, dpi=200)
+    plt.savefig(fig_path, dpi=100, bbox_inches='tight', pil_kwargs={'optimize': True, 'quality': 85})
     plt.close()
 
     # Basic stats

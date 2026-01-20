@@ -159,7 +159,7 @@ def plot_time_gradcam(
     axes[1].text(0.01, 0.95, f"target label: {target_label}", transform=axes[1].transAxes, va="top", ha="left")
 
     plt.tight_layout()
-    plt.savefig(save_path, dpi=200)
+    plt.savefig(save_path, dpi=100, bbox_inches='tight', pil_kwargs={'optimize': True, 'quality': 85})
     plt.close(fig)
 
 
@@ -188,5 +188,5 @@ def plot_time_gradcam_map(
     axes[1].set_xlabel("Time")
 
     plt.tight_layout()
-    plt.savefig(save_path, dpi=200)
+    plt.savefig(save_path, dpi=100, bbox_inches='tight', pil_kwargs={'optimize': True, 'quality': 85})
     plt.close(fig)

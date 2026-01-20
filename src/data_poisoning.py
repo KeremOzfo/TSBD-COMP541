@@ -90,11 +90,16 @@ def poison_with_trigger_all2one(trigger_model, train_data, args):
                 if original_len < args.seq_len:
                     x_padded = torch.zeros(1, args.seq_len, x.shape[2], device=args.device)
                     x_padded[:, :original_len, :] = x
+                    # Create padding mask: 1 for valid positions, 0 for padded positions
+                    padding_mask = torch.zeros(1, args.seq_len, device=args.device)
+                    padding_mask[:, :original_len] = 1.0
                 else:
                     x_padded = x[:, :args.seq_len, :]
+                    # No padding needed, all positions are valid
+                    padding_mask = torch.ones(1, args.seq_len, device=args.device)
                 
-                # Generate trigger on padded input
-                _, trigger_clip = trigger_model(x_padded, None, None, None, target_label)
+                # Generate trigger with padding mask to avoid triggers on padded positions
+                _, trigger_clip = trigger_model(x_padded, padding_mask, None, None, target_label)
                 
                 # Extract trigger for original length only
                 trigger_clip = trigger_clip[:, :original_len, :]
@@ -226,11 +231,16 @@ def silent_poison_with_trigger_all2one(trigger_model, train_data, args):
                 if original_len < args.seq_len:
                     x_padded = torch.zeros(1, args.seq_len, x.shape[2], device=args.device)
                     x_padded[:, :original_len, :] = x
+                    # Create padding mask: 1 for valid positions, 0 for padded positions
+                    padding_mask = torch.zeros(1, args.seq_len, device=args.device)
+                    padding_mask[:, :original_len] = 1.0
                 else:
                     x_padded = x[:, :args.seq_len, :]
+                    # No padding needed, all positions are valid
+                    padding_mask = torch.ones(1, args.seq_len, device=args.device)
                 
-                # Generate trigger on padded input
-                _, trigger_clip = trigger_model(x_padded, None, None, None, target_label)
+                # Generate trigger with padding mask to avoid triggers on padded positions
+                _, trigger_clip = trigger_model(x_padded, padding_mask, None, None, target_label)
                 
                 # Extract trigger for original length only
                 trigger_clip = trigger_clip[:, :original_len, :]

@@ -235,7 +235,7 @@ def warmup_surrogate(model, loader, args):
 
             optimizer.zero_grad()
 
-            pred, _ = model(batch_x, padding_mask, None, None, label)
+            pred = model(batch_x, padding_mask, None, None)
 
             loss = torch.nn.functional.mse_loss(pred, clean_out)
             loss.backward()
@@ -375,9 +375,15 @@ def train_trigger_model(trigger_model, surrogate_model, train_loader, args, trai
     )
     
     trigger_epochs = args.trigger_epochs
+    patience = getattr(args, 'trigger_patience', 0)
     train_losses, train_clean_accs, train_ASR = [], [], []
     test_losses, test_clean_accs, test_ASR = [], [], []
     all_loss_dicts = []  # Accumulate loss_dict from each epoch
+    
+    # Early stopping variables
+    best_test_asr = 0.0
+    best_epoch = 0
+    epochs_without_improvement = 0
     
     # For methods that need a copy of trigger model (ultimate, inputaware, pureinputaware)
     trigger_model_prev = None
@@ -402,6 +408,9 @@ def train_trigger_model(trigger_model, surrogate_model, train_loader, args, trai
             collate_fn=functools.partial(collate_fn, max_len=args.seq_len)
         )
         print(f"  Created secondary loader for {args.method} method (diversity/cross-trigger)")
+    
+    # Warmup surrogate model before trigger training
+    warmup_surrogate(surrogate_model, train_loader, args)
     
     for epoch in range(trigger_epochs):
         train_loss, loss_dict, clean_acc, bd_acc = trigger_train_epoch(
@@ -429,6 +438,24 @@ def train_trigger_model(trigger_model, surrogate_model, train_loader, args, trai
         test_clean_accs.append(test_clean_acc)
         test_ASR.append(test_bd_acc)
         all_loss_dicts.append(loss_dict)
+        
+        # Early stopping logic
+        if patience > 0:
+            if test_bd_acc > best_test_asr:
+                best_test_asr = test_bd_acc
+                best_epoch = epoch
+                epochs_without_improvement = 0
+                print(f"    [Early Stopping] New best ASR: {best_test_asr:.4f}")
+            else:
+                epochs_without_improvement += 1
+                print(f"    [Early Stopping] No improvement for {epochs_without_improvement}/{patience} epochs")
+                
+                if epochs_without_improvement >= patience:
+                    print(f"\n=== EARLY STOPPING TRIGGERED ===")
+                    print(f"No improvement in test ASR for {patience} epochs")
+                    print(f"Best ASR: {best_test_asr:.4f} at epoch {best_epoch+1}")
+                    print(f"Stopping at epoch {epoch+1}/{trigger_epochs}")
+                    break
     
     # Aggregate loss_dict values across epochs (compute mean per epoch)
     aggregated_losses = {}
@@ -453,7 +480,8 @@ def train_trigger_model(trigger_model, surrogate_model, train_loader, args, trai
         'test_loss': test_losses,
         'test_clean_acc': test_clean_accs,
         'test_ASR': test_ASR,
-        'loss_components': aggregated_losses
+        'loss_components': aggregated_losses,
+        'trigger_model': trigger_model  # Include model for saving
     }
     print("=== TRIGGER MODEL TRAINING COMPLETED ===")
     print(f"Final Trigger ASR: {test_bd_acc:.4f}")
@@ -557,9 +585,15 @@ def train_trigger_model_with_mask(trigger_model, surrogate_model, train_loader, 
     )
     
     trigger_epochs = args.trigger_epochs
+    patience = getattr(args, 'trigger_patience', 0)
     train_losses, train_clean_accs, train_ASR = [], [], []
     test_losses, test_clean_accs, test_ASR = [], [], []
     all_loss_dicts = []
+    
+    # Early stopping variables
+    best_test_asr = 0.0
+    best_epoch = 0
+    epochs_without_improvement = 0
     
     for epoch in range(trigger_epochs):
         train_loss, loss_dict, clean_acc, bd_acc = epoch_inputaware_masking(
@@ -590,6 +624,24 @@ def train_trigger_model_with_mask(trigger_model, surrogate_model, train_loader, 
         test_clean_accs.append(test_clean_acc)
         test_ASR.append(test_bd_acc)
         all_loss_dicts.append(loss_dict)
+        
+        # Early stopping logic
+        if patience > 0:
+            if test_bd_acc > best_test_asr:
+                best_test_asr = test_bd_acc
+                best_epoch = epoch
+                epochs_without_improvement = 0
+                print(f"    [Early Stopping] New best ASR: {best_test_asr:.4f}")
+            else:
+                epochs_without_improvement += 1
+                print(f"    [Early Stopping] No improvement for {epochs_without_improvement}/{patience} epochs")
+                
+                if epochs_without_improvement >= patience:
+                    print(f"\n=== EARLY STOPPING TRIGGERED ===")
+                    print(f"No improvement in test ASR for {patience} epochs")
+                    print(f"Best ASR: {best_test_asr:.4f} at epoch {best_epoch+1}")
+                    print(f"Stopping at epoch {epoch+1}/{trigger_epochs}")
+                    break
     
     # Aggregate losses
     aggregated_losses = {}

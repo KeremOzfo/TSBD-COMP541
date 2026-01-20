@@ -139,7 +139,7 @@ def _plot_curve(values_dict: Dict[str, np.ndarray], title: str, ylabel: str, sav
     
     save_path.parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout()
-    plt.savefig(save_path, dpi=200)
+    plt.savefig(save_path, dpi=100, bbox_inches='tight', pil_kwargs={'optimize': True, 'quality': 85})
     plt.close()
 
 
@@ -228,6 +228,32 @@ def log_all(
         if poison_accs:
             _plot_curve(poison_accs, "Poisoned Model Metrics", "Accuracy", exp_dir / "poison_metrics.png")
 
+    # Save trigger model if enabled
+    save_trigger = getattr(args, 'save_trigger_model', True)
+    if save_trigger and trigger_model is not None:
+        # Extract dataset name from root_path
+        dataset_name = Path(args.root_path).name
+        tmodel_name = getattr(args, 'Tmodel', 'unknown')
+        method_name = getattr(args, 'method', 'basic')
+        
+        # Create filename: trigger_{Tmodel}_{dataset}_{method}.pth
+        trigger_filename = f"trigger_{tmodel_name}_{dataset_name}_{method_name}.pth"
+        trigger_path = exp_dir / trigger_filename
+        
+        # Save model state dict and metadata
+        torch.save({
+            'model_state_dict': trigger_model.state_dict(),
+            'model_type': tmodel_name,
+            'dataset': dataset_name,
+            'method': method_name,
+            'seq_len': getattr(args, 'seq_len', None),
+            'enc_in': getattr(args, 'enc_in', None),
+            'd_model_bd': getattr(args, 'd_model_bd', None),
+            'args': vars(args),  # Save all args for reference
+        }, trigger_path)
+        print(f"Trigger model saved to: {trigger_path}")
+
+
     # Example plots using plot_backdoor_cases and Grad-CAM overlays
     # Only save if save_test_samples is True (default: True)
     save_test_samples = getattr(args, 'save_test_samples', True)
@@ -298,41 +324,66 @@ def log_all(
                 gradcam_dir = exp_dir / "examples" / "gradcam"
                 gradcam_dir.mkdir(parents=True, exist_ok=True)
                 max_gradcam = min(3, len(success_indices))
+                print(f"[log_all] Generating GradCAM visualizations for {max_gradcam} samples...")
                 for idx in success_indices[:max_gradcam]:
-                    # Skip if index is out of bounds (can happen with variable-length datasets)
-                    if idx >= len(clean_inputs) or idx >= len(triggered_inputs):
-                        continue
-                    # Skip if sample is missing
-                    if clean_inputs[idx] is None or triggered_inputs[idx] is None:
-                        continue
+                    try:
+                        # Skip if index is out of bounds (can happen with variable-length datasets)
+                        if idx >= len(clean_inputs) or idx >= len(triggered_inputs):
+                            print(f"[log_all] Skipping sample {idx}: out of bounds")
+                            continue
+                        # Skip if sample is missing
+                        if clean_inputs[idx] is None or triggered_inputs[idx] is None:
+                            print(f"[log_all] Skipping sample {idx}: missing data")
+                            continue
 
-                    clean_x = torch.tensor(clean_inputs[idx]).float()
-                    bd_x = torch.tensor(triggered_inputs[idx]).float()
+                        clean_x = torch.tensor(clean_inputs[idx]).float()
+                        bd_x = torch.tensor(triggered_inputs[idx]).float()
 
-                    seq_len = getattr(args, "seq_len", clean_x.shape[0])
-                    clean_x = pad_or_truncate(clean_x, seq_len)
-                    bd_x = pad_or_truncate(bd_x, seq_len)
+                        seq_len = getattr(args, "seq_len", clean_x.shape[0])
+                        clean_x = pad_or_truncate(clean_x, seq_len)
+                        bd_x = pad_or_truncate(bd_x, seq_len)
 
-                    device = getattr(args, "device", torch.device("cpu"))
-                    clean_cam = compute_time_cam(model, clean_x, target_label, device)
-                    bd_cam = compute_time_cam(model, bd_x, target_label, device)
-                    clean_cam_map = compute_time_cam_map(model, clean_x, target_label, device)
-                    bd_cam_map = compute_time_cam_map(model, bd_x, target_label, device)
+                        device = getattr(args, "device", torch.device("cpu"))
+                        clean_cam = compute_time_cam(model, clean_x, target_label, device)
+                        bd_cam = compute_time_cam(model, bd_x, target_label, device)
+                        clean_cam_map = compute_time_cam_map(model, clean_x, target_label, device)
+                        bd_cam_map = compute_time_cam_map(model, bd_x, target_label, device)
 
-                    sample_id = None
-                    if sample_cases.get("sample_ids") is not None and idx < len(sample_cases.get("sample_ids")):
-                        sample_id = sample_cases.get("sample_ids")[idx]
+                        sample_id = None
+                        if sample_cases.get("sample_ids") is not None and idx < len(sample_cases.get("sample_ids")):
+                            sample_id = sample_cases.get("sample_ids")[idx]
 
-                    map_path = gradcam_dir / f"sample_{idx}_gradcam_map.png"
-                    plot_time_gradcam_map(
-                        clean_input=clean_x.cpu().numpy(),
-                        bd_input=bd_x.cpu().numpy(),
-                        clean_cam_map=clean_cam_map,
-                        bd_cam_map=bd_cam_map,
-                        target_label=target_label,
-                        save_path=map_path,
-                        sample_id=sample_id,
-                    )
+                        # Save both GradCAM overlay and map visualizations
+                        overlay_path = gradcam_dir / f"sample_{idx}_gradcam_overlay.png"
+                        plot_time_gradcam(
+                            clean_input=clean_x.cpu().numpy(),
+                            bd_input=bd_x.cpu().numpy(),
+                            clean_cam=clean_cam,
+                            bd_cam=bd_cam,
+                            target_label=target_label,
+                            save_path=overlay_path,
+                            sample_id=sample_id,
+                        )
+
+                        map_path = gradcam_dir / f"sample_{idx}_gradcam_map.png"
+                        plot_time_gradcam_map(
+                            clean_input=clean_x.cpu().numpy(),
+                            bd_input=bd_x.cpu().numpy(),
+                            clean_cam_map=clean_cam_map,
+                            bd_cam_map=bd_cam_map,
+                            target_label=target_label,
+                            save_path=map_path,
+                            sample_id=sample_id,
+                        )
+                        print(f"[log_all] Generated GradCAM for sample {idx}")
+                    except Exception as e:
+                        print(f"[log_all] Failed to generate GradCAM for sample {idx}: {e}")
+                        import traceback
+                        traceback.print_exc()
+            elif has_samples and model is not None:
+                print("[log_all] No successful backdoor samples for GradCAM visualization")
+            elif not has_samples:
+                print("[log_all] No sample data available for GradCAM")
 
             # Always write manifest, even if empty
             with open(manifest_path, "w", encoding="utf-8") as mf:

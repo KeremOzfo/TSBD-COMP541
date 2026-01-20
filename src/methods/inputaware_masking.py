@@ -88,7 +88,7 @@ def apply_masked_trigger(x, pattern, mask):
     return x * (1 - mask) + pattern * mask
 
 
-def create_backdoor(x, bd_labels, trigger_model, mask_model, args):
+def create_backdoor(x, bd_labels, trigger_model, mask_model, args, padding_mask=None):
     """
     Create backdoored inputs using pattern and mask generators.
     
@@ -98,6 +98,7 @@ def create_backdoor(x, bd_labels, trigger_model, mask_model, args):
         trigger_model: Pattern generator
         mask_model: Mask generator
         args: Configuration
+        padding_mask: Padding mask [B, T] - 1 for valid, 0 for padded
     
     Returns:
         bd_inputs: Backdoored inputs
@@ -106,7 +107,7 @@ def create_backdoor(x, bd_labels, trigger_model, mask_model, args):
         masks_binary: Binarized masks
     """
     # Generate pattern
-    patterns, _ = trigger_model(x, None, None, None, bd_labels)
+    patterns, _ = trigger_model(x, padding_mask, None, None, bd_labels)
     
     # Generate mask
     masks = mask_model(x)
@@ -273,9 +274,11 @@ def epoch_inputaware_masking(
         
         if batch_x2 is not None:
             batch_x2 = batch_x2.float().to(args.device)
+            padding_mask2 = padding_mask2.float().to(args.device)
         else:
             indices = torch.randperm(batch_size)
             batch_x2 = batch_x[indices]
+            padding_mask2 = padding_mask[indices]
         
         # Compute batch splits
         num_attack = max(1, int(p_attack * batch_size))
@@ -308,7 +311,7 @@ def epoch_inputaware_masking(
         # Generate patterns (trainable)
         # Trigger model returns (unclipped, clipped) - use unclipped for diversity loss
         patterns1_unclipped, patterns1_clipped = bd_model(batch_x, padding_mask, None, None, bd_labels)
-        patterns2_unclipped, patterns2_clipped = bd_model(batch_x2, None, None, None, bd_labels)
+        patterns2_unclipped, patterns2_clipped = bd_model(batch_x2, padding_mask2, None, None, bd_labels)
         
         # ============== SPLIT BATCH INTO THREE MODES ==============
         # Attack mode: Apply CLIPPED pattern with its own mask

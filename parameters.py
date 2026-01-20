@@ -75,6 +75,8 @@ def args_parser():
                         help='surrogate classifier model type for trigger training, if None use same as main model')
     parser.add_argument('--trigger_epochs', type=int, default=5,
                         help='number of epochs for training the trigger model')
+    parser.add_argument('--trigger_patience', type=int, default=0,
+                        help='early stopping patience for trigger training (0 = disabled)')
     parser.add_argument('--trigger_lr', type=float, default=1e-3,
                         help='learning rate for trigger model')
     parser.add_argument('--trigger_opt', type=str, default='adam',
@@ -176,6 +178,8 @@ def args_parser():
     # ==================== LOGGING AND VISUALIZATION ====================
     parser.add_argument('--save_test_samples', type=bool, default=False,
                         help='if True, save test samples and GradCAM visualizations; if False, skip saving them')
+    parser.add_argument('--save_trigger_model', type=bool, default=True,
+                        help='if True, save the trained trigger model in the experiment directory')
     parser.add_argument('--latent_method', type=str, default='pca',
                         choices=['pca', 'tsne'],
                         help='method for latent space visualization')

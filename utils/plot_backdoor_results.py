@@ -3,11 +3,11 @@
 Comprehensive backdoor experiment plotting script.
 
 Takes:
-1. CSV/Excel from eval_results.py (backdoor results with CA, ASR, mode, model, Tmodel, root_path/dataset)
+1. CSV/Excel from eval_results.py (backdoor results with CA, ASR, method, model, Tmodel, root_path/dataset)
 2. JSONL file with clean baseline results (dataset, model, final_acc)
 
 Generates multiple bar plots:
-- Mode comparison (ASR/CA by mode, averaged across datasets/models)
+- Method comparison (ASR/CA by method, averaged across datasets/models)
 - Tmodel comparison (ASR by trigger model)
 - Model robustness (which model has lowest ASR on average)
 - Dataset difficulty (which datasets are hardest to backdoor)
@@ -60,6 +60,10 @@ def load_backdoor_results(csv_path: Path) -> pd.DataFrame:
         df['model'] = df['model'].replace('nonstationary_transformer', 'NST')
     if 'tmodel' in df.columns:
         df['tmodel'] = df['tmodel'].replace('nonstationary_transformer', 'NST')
+    
+    # Rename methods for better display
+    if 'method' in df.columns:
+        df['method'] = df['method'].replace('pureinputaware', 'InputAware')
     
     # Ensure numeric
     df['ca'] = pd.to_numeric(df['ca'], errors='coerce')
@@ -115,47 +119,47 @@ def save_plot(save_dir: Path, name: str):
     print(f"Saved: {pdf_path}")
 
 
-def plot_mode_comparison(df: pd.DataFrame, save_dir: Path):
-    """Bar plot comparing modes (basic, marksman, etc.) by ASR and CA."""
-    if 'mode' not in df.columns:
-        print("No 'mode' column found, skipping mode comparison")
+def plot_method_comparison(df: pd.DataFrame, save_dir: Path):
+    """Bar plot comparing methods (basic, marksman, etc.) by ASR and CA."""
+    if 'method' not in df.columns:
+        print("No 'method' column found, skipping method comparison")
         return
     
-    mode_stats = df.groupby('mode').agg({
-        'asr': ['mean', 'std'],
-        'ca': ['mean', 'std']
+    method_stats = df.groupby('method').agg({
+        'asr': 'mean',
+        'ca': 'mean'
     }).reset_index()
-    mode_stats.columns = ['mode', 'asr_mean', 'asr_std', 'ca_mean', 'ca_std']
-    mode_stats = mode_stats.sort_values('asr_mean', ascending=False)
+    method_stats.columns = ['method', 'asr_mean', 'ca_mean']
+    method_stats = method_stats.sort_values('asr_mean', ascending=False)
     
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     
-    # ASR by mode
+    # ASR by method
     ax = axes[0]
-    bars = ax.bar(mode_stats['mode'], mode_stats['asr_mean'] * 100, 
-                  yerr=mode_stats['asr_std'] * 100, capsize=5, color=sns.color_palette("husl", len(mode_stats)))
-    ax.set_xlabel('Attack Mode', fontsize=12)
+    bars = ax.bar(method_stats['method'], method_stats['asr_mean'] * 100, 
+                  color=sns.color_palette("husl", len(method_stats)))
+    ax.set_xlabel('Attack Method', fontsize=12)
     ax.set_ylabel('Attack Success Rate (%)', fontsize=12)
-    ax.set_title('ASR by Attack Mode (Higher = More Effective Attack)', fontsize=13, fontweight='bold')
+    ax.set_title('ASR by Attack Method (Higher = More Effective Attack)', fontsize=13, fontweight='bold')
     ax.set_ylim(0, 105)
-    for bar, val in zip(bars, mode_stats['asr_mean']):
+    for bar, val in zip(bars, method_stats['asr_mean']):
         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2, f'{val*100:.1f}%', 
                 ha='center', va='bottom', fontsize=10)
     
-    # CA by mode
+    # CA by method
     ax = axes[1]
-    bars = ax.bar(mode_stats['mode'], mode_stats['ca_mean'] * 100,
-                  yerr=mode_stats['ca_std'] * 100, capsize=5, color=sns.color_palette("husl", len(mode_stats)))
-    ax.set_xlabel('Attack Mode', fontsize=12)
+    bars = ax.bar(method_stats['method'], method_stats['ca_mean'] * 100,
+                  color=sns.color_palette("husl", len(method_stats)))
+    ax.set_xlabel('Attack Method', fontsize=12)
     ax.set_ylabel('Clean Accuracy (%)', fontsize=12)
-    ax.set_title('CA by Attack Mode (Higher = Better Utility Preservation)', fontsize=13, fontweight='bold')
+    ax.set_title('CA by Attack Method (Higher = Better Utility Preservation)', fontsize=13, fontweight='bold')
     ax.set_ylim(0, 105)
-    for bar, val in zip(bars, mode_stats['ca_mean']):
+    for bar, val in zip(bars, method_stats['ca_mean']):
         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2, f'{val*100:.1f}%', 
                 ha='center', va='bottom', fontsize=10)
     
     plt.tight_layout()
-    save_plot(save_dir, 'mode_comparison')
+    save_plot(save_dir, 'method_comparison')
     plt.close()
 
 
@@ -166,10 +170,10 @@ def plot_tmodel_comparison(df: pd.DataFrame, save_dir: Path):
         return
     
     tmodel_stats = df.groupby('tmodel').agg({
-        'asr': ['mean', 'std'],
-        'ca': ['mean', 'std']
+        'asr': 'mean',
+        'ca': 'mean'
     }).reset_index()
-    tmodel_stats.columns = ['tmodel', 'asr_mean', 'asr_std', 'ca_mean', 'ca_std']
+    tmodel_stats.columns = ['tmodel', 'asr_mean', 'ca_mean']
     tmodel_stats = tmodel_stats.sort_values('asr_mean', ascending=False)
     
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -179,7 +183,7 @@ def plot_tmodel_comparison(df: pd.DataFrame, save_dir: Path):
     # ASR by Tmodel
     ax = axes[0]
     bars = ax.bar(tmodel_stats['tmodel'], tmodel_stats['asr_mean'] * 100,
-                  yerr=tmodel_stats['asr_std'] * 100, capsize=5, color=colors)
+                  color=colors)
     ax.set_xlabel('Trigger Model', fontsize=12)
     ax.set_ylabel('Attack Success Rate (%)', fontsize=12)
     ax.set_title('ASR by Trigger Model', fontsize=13, fontweight='bold')
@@ -191,7 +195,7 @@ def plot_tmodel_comparison(df: pd.DataFrame, save_dir: Path):
     # CA by Tmodel
     ax = axes[1]
     bars = ax.bar(tmodel_stats['tmodel'], tmodel_stats['ca_mean'] * 100,
-                  yerr=tmodel_stats['ca_std'] * 100, capsize=5, color=colors)
+                  color=colors)
     ax.set_xlabel('Trigger Model', fontsize=12)
     ax.set_ylabel('Clean Accuracy (%)', fontsize=12)
     ax.set_title('CA by Trigger Model', fontsize=13, fontweight='bold')
@@ -212,17 +216,17 @@ def plot_model_robustness(df: pd.DataFrame, save_dir: Path):
         return
     
     model_stats = df.groupby('model').agg({
-        'asr': ['mean', 'std'],
-        'ca': ['mean', 'std']
+        'asr': 'mean',
+        'ca': 'mean'
     }).reset_index()
-    model_stats.columns = ['model', 'asr_mean', 'asr_std', 'ca_mean', 'ca_std']
+    model_stats.columns = ['model', 'asr_mean', 'ca_mean']
     model_stats = model_stats.sort_values('asr_mean', ascending=True)  # Lower ASR = more robust
     
     fig, ax = plt.subplots(figsize=(12, 6))
     
     colors = sns.color_palette("coolwarm_r", len(model_stats))
     bars = ax.barh(model_stats['model'], model_stats['asr_mean'] * 100,
-                   xerr=model_stats['asr_std'] * 100, capsize=4, color=colors)
+                   color=colors)
     
     ax.set_xlabel('Attack Success Rate (%)', fontsize=12)
     ax.set_ylabel('Model', fontsize=12)
@@ -246,17 +250,17 @@ def plot_dataset_difficulty(df: pd.DataFrame, save_dir: Path):
         return
     
     dataset_stats = df.groupby('dataset').agg({
-        'asr': ['mean', 'std'],
-        'ca': ['mean', 'std']
+        'asr': 'mean',
+        'ca': 'mean'
     }).reset_index()
-    dataset_stats.columns = ['dataset', 'asr_mean', 'asr_std', 'ca_mean', 'ca_std']
+    dataset_stats.columns = ['dataset', 'asr_mean', 'ca_mean']
     dataset_stats = dataset_stats.sort_values('asr_mean', ascending=True)
     
     fig, ax = plt.subplots(figsize=(14, max(6, len(dataset_stats) * 0.4)))
     
     colors = sns.color_palette("RdYlGn_r", len(dataset_stats))
     bars = ax.barh(dataset_stats['dataset'], dataset_stats['asr_mean'] * 100,
-                   xerr=dataset_stats['asr_std'] * 100, capsize=3, color=colors)
+                   color=colors)
     
     ax.set_xlabel('Attack Success Rate (%)', fontsize=12)
     ax.set_ylabel('Dataset', fontsize=12)
@@ -300,11 +304,11 @@ def plot_ca_drop(df: pd.DataFrame, clean_df: pd.DataFrame, save_dir: Path):
     
     # Aggregate by model
     model_drop = merged.groupby('model').agg({
-        'ca_drop': ['mean', 'std'],
+        'ca_drop': 'mean',
         'clean_ca': 'mean',
         'bd_ca': 'mean'
     }).reset_index()
-    model_drop.columns = ['model', 'drop_mean', 'drop_std', 'clean_ca', 'bd_ca']
+    model_drop.columns = ['model', 'drop_mean', 'clean_ca', 'bd_ca']
     model_drop = model_drop.sort_values('drop_mean', ascending=False)
     
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -313,7 +317,7 @@ def plot_ca_drop(df: pd.DataFrame, clean_df: pd.DataFrame, save_dir: Path):
     ax = axes[0]
     colors = sns.color_palette("Reds", len(model_drop))
     bars = ax.bar(model_drop['model'], model_drop['drop_mean'],
-                  yerr=model_drop['drop_std'], capsize=5, color=colors)
+                  color=colors)
     ax.set_xlabel('Model', fontsize=12)
     ax.set_ylabel('Accuracy Drop (%)', fontsize=12)
     ax.set_title('Clean Accuracy Drop After Backdoor Attack\n(Lower = Better Utility)', 
@@ -342,18 +346,84 @@ def plot_ca_drop(df: pd.DataFrame, clean_df: pd.DataFrame, save_dir: Path):
     plt.close()
 
 
-def plot_heatmap_mode_model(df: pd.DataFrame, save_dir: Path):
-    """Heatmap of ASR by mode x model (excludes clean mode)."""
-    if 'mode' not in df.columns or 'model' not in df.columns:
+def plot_ca_vs_clean_baseline(df: pd.DataFrame, clean_df: pd.DataFrame, save_dir: Path):
+    """Bar plot comparing backdoor CA against clean baseline CA by model."""
+    if clean_df.empty:
+        print("No clean results provided, skipping CA vs baseline plot")
         return
     
-    # Filter out clean mode
-    df_filtered = df[df['mode'].isin(['basic', 'marksman'])]
+    if 'dataset' not in df.columns or 'model' not in df.columns:
+        print("Missing dataset/model columns, skipping CA vs baseline plot")
+        return
+    
+    # Average backdoor CA per dataset+model (same logic as plot_ca_drop)
+    bd_ca = df.groupby(['dataset', 'model'])['ca'].mean().reset_index()
+    bd_ca.columns = ['dataset', 'model', 'bd_ca']
+    
+    # Merge with clean results
+    clean_df_renamed = clean_df[['dataset', 'model', 'final_acc']].copy()
+    clean_df_renamed.columns = ['dataset', 'model', 'clean_ca']
+    
+    merged = bd_ca.merge(clean_df_renamed, on=['dataset', 'model'], how='inner')
+    
+    if merged.empty:
+        print("No matching dataset/model pairs between backdoor and clean results")
+        return
+    
+    # Aggregate by model
+    model_stats = merged.groupby('model').agg({
+        'clean_ca': 'mean',
+        'bd_ca': 'mean'
+    }).reset_index()
+    
+    model_stats = model_stats.sort_values('clean_ca', ascending=False)
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    x = np.arange(len(model_stats))
+    width = 0.35
+    
+    bars1 = ax.bar(x - width/2, model_stats['clean_ca'] * 100, width, 
+                   label='Clean Baseline', color='forestgreen', alpha=0.8)
+    bars2 = ax.bar(x + width/2, model_stats['bd_ca'] * 100, width, 
+                   label='Backdoor CA', color='indianred', alpha=0.8)
+    
+    ax.set_xlabel('Model', fontsize=12)
+    ax.set_ylabel('Clean Accuracy (%)', fontsize=12)
+    ax.set_title('Backdoor CA vs Clean Baseline by Model', fontsize=13, fontweight='bold')
+    ax.set_xticks(x)
+    ax.set_xticklabels(model_stats['model'], rotation=45, ha='right')
+    ax.legend(fontsize=11)
+    ax.set_ylim(0, 105)
+    ax.grid(axis='y', alpha=0.3)
+    
+    # Add value labels on bars
+    for bar in bars1:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 1,
+                f'{height:.1f}%', ha='center', va='bottom', fontsize=9)
+    for bar in bars2:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 1,
+                f'{height:.1f}%', ha='center', va='bottom', fontsize=9)
+    
+    plt.tight_layout()
+    save_plot(save_dir, 'ca_vs_clean_baseline')
+    plt.close()
+
+
+def plot_heatmap_method_model(df: pd.DataFrame, save_dir: Path):
+    """Heatmap of ASR by method x model (excludes clean method)."""
+    if 'method' not in df.columns or 'model' not in df.columns:
+        return
+    
+    # Filter out clean method
+    df_filtered = df[df['method'].isin(['basic', 'marksman', 'InputAware'])]
     if df_filtered.empty:
-        print("No basic/marksman mode data for mode x model heatmap")
+        print("No basic/marksman/InputAware method data for method x model heatmap")
         return
     
-    pivot = df_filtered.groupby(['mode', 'model'])['asr'].mean().unstack(fill_value=np.nan) * 100
+    pivot = df_filtered.groupby(['method', 'model'])['asr'].mean().unstack(fill_value=np.nan) * 100
     
     if pivot.empty:
         return
@@ -361,22 +431,22 @@ def plot_heatmap_mode_model(df: pd.DataFrame, save_dir: Path):
     fig, ax = plt.subplots(figsize=(10, 6))
     sns.heatmap(pivot, annot=True, fmt='.1f', cmap='YlOrRd', ax=ax, vmin=0, vmax=100,
                 cbar_kws={'label': 'ASR (%)'})
-    ax.set_title('ASR (%) by Mode × Model', fontsize=13, fontweight='bold')
+    ax.set_title('ASR (%) by Method × Model', fontsize=13, fontweight='bold')
     ax.set_xlabel('Model')
-    ax.set_ylabel('Mode')
+    ax.set_ylabel('Method')
     
     plt.tight_layout()
-    save_plot(save_dir, 'heatmap_mode_model')
+    save_plot(save_dir, 'heatmap_method_model')
     plt.close()
 
 
 def plot_heatmap_tmodel_model(df: pd.DataFrame, save_dir: Path):
-    """Heatmap of ASR by Tmodel x model (excludes clean mode)."""
+    """Heatmap of ASR by Tmodel x model (excludes clean method)."""
     if 'tmodel' not in df.columns or 'model' not in df.columns:
         return
     
-    # Filter out clean mode
-    df_filtered = df[df['mode'].isin(['basic', 'marksman'])] if 'mode' in df.columns else df
+    # Filter out clean method
+    df_filtered = df[df['method'].isin(['basic', 'marksman', 'InputAware'])] if 'method' in df.columns else df
     if df_filtered.empty:
         return
     
@@ -397,18 +467,18 @@ def plot_heatmap_tmodel_model(df: pd.DataFrame, save_dir: Path):
     plt.close()
 
 
-def plot_heatmap_mode_dataset(df: pd.DataFrame, save_dir: Path):
-    """Heatmap of ASR by mode x dataset (excludes clean mode)."""
-    if 'mode' not in df.columns or 'dataset' not in df.columns:
+def plot_heatmap_method_dataset(df: pd.DataFrame, save_dir: Path):
+    """Heatmap of ASR by method x dataset (excludes clean method)."""
+    if 'method' not in df.columns or 'dataset' not in df.columns:
         return
     
-    # Filter out clean mode
-    df_filtered = df[df['mode'].isin(['basic', 'marksman'])]
+    # Filter out clean method
+    df_filtered = df[df['method'].isin(['basic', 'marksman', 'InputAware'])]
     if df_filtered.empty:
-        print("No basic/marksman mode data for mode x dataset heatmap")
+        print("No basic/marksman/InputAware method data for method x dataset heatmap")
         return
     
-    pivot = df_filtered.groupby(['mode', 'dataset'])['asr'].mean().unstack(fill_value=np.nan) * 100
+    pivot = df_filtered.groupby(['method', 'dataset'])['asr'].mean().unstack(fill_value=np.nan) * 100
     
     if pivot.empty:
         return
@@ -416,23 +486,23 @@ def plot_heatmap_mode_dataset(df: pd.DataFrame, save_dir: Path):
     fig, ax = plt.subplots(figsize=(max(12, len(pivot.columns) * 0.8), 6))
     sns.heatmap(pivot, annot=True, fmt='.1f', cmap='YlOrRd', ax=ax, vmin=0, vmax=100,
                 cbar_kws={'label': 'ASR (%)'})
-    ax.set_title('ASR (%) by Mode × Dataset', fontsize=13, fontweight='bold')
+    ax.set_title('ASR (%) by Method × Dataset', fontsize=13, fontweight='bold')
     ax.set_xlabel('Dataset')
-    ax.set_ylabel('Mode')
+    ax.set_ylabel('Method')
     plt.xticks(rotation=45, ha='right')
     
     plt.tight_layout()
-    save_plot(save_dir, 'heatmap_mode_dataset')
+    save_plot(save_dir, 'heatmap_method_dataset')
     plt.close()
 
 
 def plot_heatmap_tmodel_dataset(df: pd.DataFrame, save_dir: Path):
-    """Heatmap of ASR by Tmodel x dataset (excludes clean mode)."""
+    """Heatmap of ASR by Tmodel x dataset (excludes clean method)."""
     if 'tmodel' not in df.columns or 'dataset' not in df.columns:
         return
     
-    # Filter out clean mode
-    df_filtered = df[df['mode'].isin(['basic', 'marksman'])] if 'mode' in df.columns else df
+    # Filter out clean method
+    df_filtered = df[df['method'].isin(['basic', 'marksman', 'InputAware'])] if 'method' in df.columns else df
     if df_filtered.empty:
         return
     
@@ -476,6 +546,200 @@ def plot_heatmap_dataset_model(df: pd.DataFrame, save_dir: Path):
     plt.close()
 
 
+def plot_best_tmodel_per_model_dataset(df: pd.DataFrame, save_dir: Path):
+    """Heatmap showing best Tmodel for each model×dataset combination."""
+    if 'tmodel' not in df.columns or 'model' not in df.columns or 'dataset' not in df.columns:
+        print("Missing required columns for best Tmodel plot")
+        return
+    
+    # Filter out clean method if exists
+    df_filtered = df[df['method'].isin(['basic', 'marksman', 'InputAware'])] if 'method' in df.columns else df
+    if df_filtered.empty:
+        print("No data for best Tmodel plot")
+        return
+    
+    # For each model×dataset, find the Tmodel with highest ASR
+    best_tmodel = df_filtered.loc[df_filtered.groupby(['model', 'dataset'])['asr'].idxmax()]
+    
+    # Create pivot for display: show Tmodel name with ASR value
+    pivot_data = []
+    for _, row in best_tmodel.iterrows():
+        pivot_data.append({
+            'model': row['model'],
+            'dataset': row['dataset'],
+            'best_tmodel': f"{row['tmodel']}\n({row['asr']*100:.1f}%)",
+            'asr': row['asr'] * 100
+        })
+    
+    if not pivot_data:
+        return
+    
+    pivot_df = pd.DataFrame(pivot_data)
+    
+    # Create text pivot for annotations
+    text_pivot = pivot_df.pivot(index='model', columns='dataset', values='best_tmodel')
+    # Create numeric pivot for coloring
+    num_pivot = pivot_df.pivot(index='model', columns='dataset', values='asr')
+    
+    fig, ax = plt.subplots(figsize=(max(12, len(text_pivot.columns) * 1.2), max(8, len(text_pivot) * 0.8)))
+    sns.heatmap(num_pivot, annot=text_pivot, fmt='', cmap='YlOrRd', ax=ax, vmin=0, vmax=100,
+                cbar_kws={'label': 'ASR (%)'}, annot_kws={'fontsize': 9})
+    ax.set_title('Best Trigger Model for Each Target Model × Dataset\n(Shows Tmodel with highest ASR)', 
+                 fontsize=13, fontweight='bold')
+    ax.set_xlabel('Dataset', fontsize=12)
+    ax.set_ylabel('Target Model', fontsize=12)
+    plt.xticks(rotation=45, ha='right')
+    
+    plt.tight_layout()
+    save_plot(save_dir, 'best_tmodel_per_model_dataset')
+    plt.close()
+
+
+def plot_best_method_per_model_dataset(df: pd.DataFrame, save_dir: Path):
+    """Heatmap showing best method for each model×dataset combination."""
+    if 'method' not in df.columns or 'model' not in df.columns or 'dataset' not in df.columns:
+        print("Missing required columns for best method plot")
+        return
+    
+    # Filter to only include relevant methods
+    df_filtered = df[df['method'].isin(['basic', 'marksman', 'InputAware'])]
+    if df_filtered.empty:
+        print("No basic/marksman/InputAware data for best method plot")
+        return
+    
+    # For each model×dataset, find the method with highest ASR
+    best_method = df_filtered.loc[df_filtered.groupby(['model', 'dataset'])['asr'].idxmax()]
+    
+    # Create pivot for display: show method name with ASR value
+    pivot_data = []
+    for _, row in best_method.iterrows():
+        pivot_data.append({
+            'model': row['model'],
+            'dataset': row['dataset'],
+            'best_method': f"{row['method']}\n({row['asr']*100:.1f}%)",
+            'asr': row['asr'] * 100
+        })
+    
+    if not pivot_data:
+        return
+    
+    pivot_df = pd.DataFrame(pivot_data)
+    
+    # Create text pivot for annotations
+    text_pivot = pivot_df.pivot(index='model', columns='dataset', values='best_method')
+    # Create numeric pivot for coloring
+    num_pivot = pivot_df.pivot(index='model', columns='dataset', values='asr')
+    
+    fig, ax = plt.subplots(figsize=(max(12, len(text_pivot.columns) * 1.2), max(8, len(text_pivot) * 0.8)))
+    sns.heatmap(num_pivot, annot=text_pivot, fmt='', cmap='YlOrRd', ax=ax, vmin=0, vmax=100,
+                cbar_kws={'label': 'ASR (%)'}, annot_kws={'fontsize': 9})
+    ax.set_title('Best Attack Method for Each Target Model × Dataset\n(Shows method with highest ASR)', 
+                 fontsize=13, fontweight='bold')
+    ax.set_xlabel('Dataset', fontsize=12)
+    ax.set_ylabel('Target Model', fontsize=12)
+    plt.xticks(rotation=45, ha='right')
+    
+    plt.tight_layout()
+    save_plot(save_dir, 'best_method_per_model_dataset')
+    plt.close()
+
+
+def plot_heatmap_method_dataset_ca_drop(df: pd.DataFrame, clean_df: pd.DataFrame, save_dir: Path):
+    """Heatmap of CA drop by method x dataset (excludes clean method)."""
+    if clean_df.empty:
+        print("No clean results provided, skipping method x dataset CA drop heatmap")
+        return
+    
+    if 'method' not in df.columns or 'dataset' not in df.columns:
+        return
+    
+    # Filter out clean method
+    df_filtered = df[df['method'].isin(['basic', 'marksman', 'InputAware'])]
+    if df_filtered.empty:
+        print("No basic/marksman/InputAware method data for method x dataset CA drop heatmap")
+        return
+    
+    # Get backdoor CA per method+dataset
+    bd_ca = df_filtered.groupby(['method', 'dataset', 'model'])['ca'].mean().reset_index()
+    
+    # Merge with clean results
+    clean_ca = clean_df[['dataset', 'model', 'final_acc']].copy()
+    clean_ca.columns = ['dataset', 'model', 'clean_ca']
+    
+    merged = bd_ca.merge(clean_ca, on=['dataset', 'model'], how='inner')
+    merged['ca_drop'] = (merged['clean_ca'] - merged['ca']) * 100
+    
+    if merged.empty:
+        print("No matching dataset/model pairs for method x dataset CA drop heatmap")
+        return
+    
+    # Average across models for each method+dataset
+    pivot = merged.groupby(['method', 'dataset'])['ca_drop'].mean().unstack(fill_value=np.nan)
+    
+    if pivot.empty:
+        return
+    
+    fig, ax = plt.subplots(figsize=(max(12, len(pivot.columns) * 0.8), 6))
+    sns.heatmap(pivot, annot=True, fmt='.1f', cmap='RdYlGn_r', ax=ax, vmin=0, vmax=20,
+                cbar_kws={'label': 'CA Drop (%)'})
+    ax.set_title('CA Drop (%) by Method × Dataset', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Dataset')
+    ax.set_ylabel('Method')
+    plt.xticks(rotation=45, ha='right')
+    
+    plt.tight_layout()
+    save_plot(save_dir, 'heatmap_method_dataset_ca_drop')
+    plt.close()
+
+
+def plot_heatmap_tmodel_dataset_ca_drop(df: pd.DataFrame, clean_df: pd.DataFrame, save_dir: Path):
+    """Heatmap of CA drop by Tmodel x dataset (excludes clean method)."""
+    if clean_df.empty:
+        print("No clean results provided, skipping Tmodel x dataset CA drop heatmap")
+        return
+    
+    if 'tmodel' not in df.columns or 'dataset' not in df.columns:
+        return
+    
+    # Filter out clean method
+    df_filtered = df[df['method'].isin(['basic', 'marksman', 'InputAware'])] if 'method' in df.columns else df
+    if df_filtered.empty:
+        print("No data for Tmodel x dataset CA drop heatmap")
+        return
+    
+    # Get backdoor CA per tmodel+dataset
+    bd_ca = df_filtered.groupby(['tmodel', 'dataset', 'model'])['ca'].mean().reset_index()
+    
+    # Merge with clean results
+    clean_ca = clean_df[['dataset', 'model', 'final_acc']].copy()
+    clean_ca.columns = ['dataset', 'model', 'clean_ca']
+    
+    merged = bd_ca.merge(clean_ca, on=['dataset', 'model'], how='inner')
+    merged['ca_drop'] = (merged['clean_ca'] - merged['ca']) * 100
+    
+    if merged.empty:
+        print("No matching dataset/model pairs for Tmodel x dataset CA drop heatmap")
+        return
+    
+    # Average across models for each tmodel+dataset
+    pivot = merged.groupby(['tmodel', 'dataset'])['ca_drop'].mean().unstack(fill_value=np.nan)
+    
+    if pivot.empty:
+        return
+    
+    fig, ax = plt.subplots(figsize=(max(12, len(pivot.columns) * 0.8), 6))
+    sns.heatmap(pivot, annot=True, fmt='.1f', cmap='RdYlGn_r', ax=ax, vmin=0, vmax=20,
+                cbar_kws={'label': 'CA Drop (%)'})
+    ax.set_title('CA Drop (%) by Trigger Model × Dataset', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Dataset')
+    ax.set_ylabel('Trigger Model')
+    plt.xticks(rotation=45, ha='right')
+    
+    plt.tight_layout()
+    save_plot(save_dir, 'heatmap_tmodel_dataset_ca_drop')
+    plt.close()
+
+
 def plot_overall_summary(df: pd.DataFrame, save_dir: Path):
     """Create an overall summary figure with key metrics."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
@@ -516,12 +780,10 @@ def plot_overall_summary(df: pd.DataFrame, save_dir: Path):
     stats = [
         ['Total Experiments', len(df)],
         ['Mean ASR', f'{df["asr"].mean()*100:.1f}%'],
-        ['Std ASR', f'{df["asr"].std()*100:.1f}%'],
         ['Mean CA', f'{df["ca"].mean()*100:.1f}%'],
-        ['Std CA', f'{df["ca"].std()*100:.1f}%'],
         ['Unique Models', df['model'].nunique() if 'model' in df.columns else 'N/A'],
         ['Unique Datasets', df['dataset'].nunique() if 'dataset' in df.columns else 'N/A'],
-        ['Unique Modes', df['mode'].nunique() if 'mode' in df.columns else 'N/A'],
+        ['Unique Methods', df['method'].nunique() if 'method' in df.columns else 'N/A'],
         ['Unique Tmodels', df['tmodel'].nunique() if 'tmodel' in df.columns else 'N/A'],
     ]
     
@@ -542,8 +804,8 @@ def main():
     parser = argparse.ArgumentParser(description='Generate plots from backdoor experiment results.')
     parser.add_argument('--csv', type=str, required=True,
                         help='Path to CSV/Excel file with backdoor results')
-    parser.add_argument('--clean', type=str, default=None,
-                        help='Path to JSONL file with clean baseline results')
+    parser.add_argument('--clean', type=str, default=str(Path(__file__).parent / 'clean_results.jsonl'),
+                        help='Path to JSONL file with clean baseline results (default: utils/clean_results.jsonl)')
     parser.add_argument('--output', type=str, default=str(Path(__file__).parents[1] / 'plots'),
                         help='Output directory for plots (default: project_root/plots)')
     
@@ -559,7 +821,7 @@ def main():
     print(f"Columns: {list(df.columns)}")
     
     # Aggregate duplicates
-    group_cols = ['model', 'tmodel', 'mode', 'dataset']
+    group_cols = ['model', 'tmodel', 'method', 'dataset']
     df = aggregate_duplicates(df, group_cols)
     print(f"After aggregation: {len(df)} unique parameter combinations")
     
@@ -571,21 +833,29 @@ def main():
             print(f"Loading clean results from {clean_path}...")
             clean_df = load_clean_results(clean_path)
             print(f"Loaded {len(clean_df)} clean result records")
+        else:
+            print(f"Warning: Clean results file not found at {clean_path}")
+            print("CA comparison plots will be skipped.")
     
     # Generate all plots
     print("\nGenerating plots...")
     
     plot_overall_summary(df, save_dir)
-    plot_mode_comparison(df, save_dir)
+    plot_method_comparison(df, save_dir)
     plot_tmodel_comparison(df, save_dir)
     plot_model_robustness(df, save_dir)
     plot_dataset_difficulty(df, save_dir)
     plot_ca_drop(df, clean_df, save_dir)
-    plot_heatmap_mode_model(df, save_dir)
-    plot_heatmap_mode_dataset(df, save_dir)
+    plot_ca_vs_clean_baseline(df, clean_df, save_dir)
+    plot_heatmap_method_model(df, save_dir)
+    plot_heatmap_method_dataset(df, save_dir)
+    plot_heatmap_method_dataset_ca_drop(df, clean_df, save_dir)
     plot_heatmap_tmodel_model(df, save_dir)
     plot_heatmap_tmodel_dataset(df, save_dir)
+    plot_heatmap_tmodel_dataset_ca_drop(df, clean_df, save_dir)
     plot_heatmap_dataset_model(df, save_dir)
+    plot_best_tmodel_per_model_dataset(df, save_dir)
+    plot_best_method_per_model_dataset(df, save_dir)
     
     print(f"\nAll plots saved to {save_dir}")
 

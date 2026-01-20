@@ -99,7 +99,13 @@ if __name__ == "__main__":
     elif args.train_mode == "backdoor":
    
         if args.use_pretrained_trigger == True:  
-            trigger_model = torch.load(args.trigger_model_path).to(args.device)
+            # Load pre-trained trigger model with dimension adaptation
+            from utils.load_trigger_model import load_trigger_model_with_adaptation
+            trigger_model = load_trigger_model_with_adaptation(
+                args.trigger_model_path, 
+                args, 
+                train_data
+            ).to(args.device)
             trigger_results = None
             mask_model = None
         else:
