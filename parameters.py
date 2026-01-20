@@ -18,8 +18,7 @@ def args_parser():
     parser.add_argument('--model', type=str, default='TimesNet',
                         choices=['TimesNet', 'lstm', 'PatchTST', 'iTransformer', 'TimeMixer', 'resnet', 'mlp', 'nonstationary_transformer', 'TCN', 'BiRNN'],
                         help='main model architecture to use')
-    parser.add_argument('--use_pretrained_trigger', type=str, default=False,
-                        choices=[True,False],
+    parser.add_argument('--use_pretrained_trigger', action='store_true',
                         help='use pre-trained trigger model')
     parser.add_argument('--bd_type', type=str, default='all2one',
                         choices=['all2one', 'all2all'],
@@ -176,9 +175,9 @@ def args_parser():
                         help='if True, auto-select d_model_bd/d_ff_bd/e_layers_bd/n_heads_bd based on dataset_info.csv')
 
     # ==================== LOGGING AND VISUALIZATION ====================
-    parser.add_argument('--save_test_samples', type=bool, default=False,
+    parser.add_argument('--save_test_samples', action='store_true',
                         help='if True, save test samples and GradCAM visualizations; if False, skip saving them')
-    parser.add_argument('--save_trigger_model', type=bool, default=True,
+    parser.add_argument('--save_trigger_model', action='store_true', default=True,
                         help='if True, save the trained trigger model in the experiment directory')
     parser.add_argument('--latent_method', type=str, default='pca',
                         choices=['pca', 'tsne'],

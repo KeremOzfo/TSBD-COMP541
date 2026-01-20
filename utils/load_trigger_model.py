@@ -33,7 +33,7 @@ def load_trigger_model_with_adaptation(checkpoint_path, args, train_data=None):
         ...     train_data
         ... )
     """
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     
     # Extract saved metadata
     saved_args = checkpoint.get('args', {})
