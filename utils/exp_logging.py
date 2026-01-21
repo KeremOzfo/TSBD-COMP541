@@ -278,18 +278,25 @@ def log_all(
 
             # Ensure all arrays have the same length (handle variable-length datasets)
             if has_samples:
-                min_len = min(len(clean_inputs), len(triggered_inputs), len(preds), len(trues))
-                if min_len < len(clean_inputs) or min_len < len(triggered_inputs) or min_len < len(preds) or min_len < len(trues):
+                # Include sample_ids in min_len calculation if it exists
+                lengths = [len(clean_inputs), len(triggered_inputs), len(preds), len(trues)]
+                if sample_cases.get("sample_ids") is not None:
+                    sample_ids_list = list(sample_cases.get("sample_ids"))
+                    lengths.append(len(sample_ids_list))
+                
+                min_len = min(lengths)
+                
+                if min_len < max(lengths):
                     print(f"[log_all] Warning: Truncating sample arrays to common length {min_len}")
                     print(f"  Original lengths - clean: {len(clean_inputs)}, triggered: {len(triggered_inputs)}, preds: {len(preds)}, trues: {len(trues)}")
+                    if sample_cases.get("sample_ids") is not None:
+                        print(f"  sample_ids: {len(sample_cases.get('sample_ids'))}")
                     clean_inputs = clean_inputs[:min_len]
                     triggered_inputs = triggered_inputs[:min_len]
                     preds = preds[:min_len]
                     trues = trues[:min_len]
                     if sample_cases.get("sample_ids") is not None:
-                        sample_ids_list = list(sample_cases.get("sample_ids"))
-                        if len(sample_ids_list) > min_len:
-                            sample_cases["sample_ids"] = sample_ids_list[:min_len]
+                        sample_cases["sample_ids"] = list(sample_cases.get("sample_ids"))[:min_len]
 
             target_label = sample_cases.get("target_label", getattr(args, "target_label", 0))
 
@@ -344,8 +351,6 @@ def log_all(
                         bd_x = pad_or_truncate(bd_x, seq_len)
 
                         device = getattr(args, "device", torch.device("cpu"))
-                        clean_cam = compute_time_cam(model, clean_x, target_label, device)
-                        bd_cam = compute_time_cam(model, bd_x, target_label, device)
                         clean_cam_map = compute_time_cam_map(model, clean_x, target_label, device)
                         bd_cam_map = compute_time_cam_map(model, bd_x, target_label, device)
 
@@ -353,18 +358,7 @@ def log_all(
                         if sample_cases.get("sample_ids") is not None and idx < len(sample_cases.get("sample_ids")):
                             sample_id = sample_cases.get("sample_ids")[idx]
 
-                        # Save both GradCAM overlay and map visualizations
-                        overlay_path = gradcam_dir / f"sample_{idx}_gradcam_overlay.png"
-                        plot_time_gradcam(
-                            clean_input=clean_x.cpu().numpy(),
-                            bd_input=bd_x.cpu().numpy(),
-                            clean_cam=clean_cam,
-                            bd_cam=bd_cam,
-                            target_label=target_label,
-                            save_path=overlay_path,
-                            sample_id=sample_id,
-                        )
-
+                        # Save GradCAM map visualization only
                         map_path = gradcam_dir / f"sample_{idx}_gradcam_map.png"
                         plot_time_gradcam_map(
                             clean_input=clean_x.cpu().numpy(),
