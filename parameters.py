@@ -16,7 +16,7 @@ def args_parser():
                     choices=['clean', 'backdoor', 'test'],
                     help='training mode (test = evaluate pre-trained trigger model)')
     parser.add_argument('--model', type=str, default='TimesNet',
-                        choices=['TimesNet', 'lstm', 'PatchTST', 'iTransformer', 'TimeMixer', 'resnet', 'mlp', 'nonstationary_transformer', 'TCN', 'BiRNN'],
+                        choices=['TimesNet', 'lstm', 'PatchTST', 'iTransformer', 'TimeMixer', 'resnet', 'mlp', 'nonstationary_transformer', 'TCN', 'BiRNN', 'DLinear'],
                         help='main model architecture to use')
     parser.add_argument('--use_pretrained_trigger', action='store_true',
                         help='use pre-trained trigger model')

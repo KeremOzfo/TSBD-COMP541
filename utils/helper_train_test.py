@@ -15,6 +15,7 @@ from src.models.target_models.ResNet1D import Model as ResNet1D
 from src.models.target_models.MLPClassifier import Model as MLPClassifier
 from src.models.target_models.TCN import Model as TCNClassifier
 from src.models.target_models.BiRNN import Model as BiRNNClassifier
+from src.models.target_models.dlinear import Model as DLinear
 #########Model Import (Trigger Models)#########
 from src.models.trigger_models.bd_TimesNet.bd_TimesNet import Model as Bd_TimesNet
 from src.models.trigger_models.bd_patchTST.bd_patchTST import Model as Bd_PatchTST
@@ -53,7 +54,8 @@ target_model_dict = {
     'resnet': ResNet1D,
     'mlp': MLPClassifier,
     'tcn': TCNClassifier,
-    'birnn': BiRNNClassifier
+    'birnn': BiRNNClassifier,
+    'dlinear': DLinear
 }
 
 trigger_model_dict = {

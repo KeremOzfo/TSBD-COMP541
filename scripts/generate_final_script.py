@@ -40,7 +40,7 @@ TRIGGER_MODELS = ['citst', 'cpatchtst', 'ctimesnet']
 MAIN_MODELS = ['TimesNet','TCN','lstm','nonstationary_transformer','mlp','resnet','iTransformer']
 
 # All methods except defeat
-TRAINING_METHODS = ['vanilla', 'marksman', 'pureinputaware']
+TRAINING_METHODS = ['vanilla', 'marksman', 'pureinputaware','frequency']
 
 
 # ==================== TOP 3 OPTIMIZER CONFIGURATIONS (Based on Analysis) ====================
@@ -110,12 +110,7 @@ METHOD_HYPERPARAMS = {
         {'name': 'low_poison', 'params': {'div_reg': 1.0, 'poisoning_ratio_train': 0.05}},
     ],
     'frequency': [
-        {'name': 'low_freq', 'params': {'lambda_freq': 0.5, 'freq_lambda': 0.05}},
         {'name': 'standard', 'params': {'lambda_freq': 1.0, 'freq_lambda': 0.05}},
-        {'name': 'high_freq', 'params': {'lambda_freq': 2.0, 'freq_lambda': 0.05}},
-        {'name': 'very_high_freq', 'params': {'lambda_freq': 5.0, 'freq_lambda': 0.05}},
-        {'name': 'high_perturbation', 'params': {'lambda_freq': 1.0, 'freq_lambda': 0.1}},
-        {'name': 'low_perturbation', 'params': {'lambda_freq': 1.0, 'freq_lambda': 0.01}},
     ],
     'inputaware': [
         {'name': 'balanced', 'params': {'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0}},

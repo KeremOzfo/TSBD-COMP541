@@ -139,8 +139,7 @@ def epoch_frequency_guided(
         loss_freq = torch.mean((trigger_mag - target_mag) ** 2)
 
         # Regularization in both frequency and temporal domains (Eq. 4)
-        loss_reg = torch.mean(trigger_mag ** 2) + torch.mean(trigger_clip ** 2)
-
+        loss_reg = torch.mean(trigger_mag ** 2)
         loss = loss_ce + alpha * loss_freq + beta * loss_reg
 
         if opt is not None and train:
