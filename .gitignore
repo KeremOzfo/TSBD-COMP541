@@ -5,3 +5,9 @@ dataset/*
 __pycache__/
 results/
 results/*
+.DS_Store
+*.zip
+*.log
+.ipynb_checkpoints/
+.vscode/
+.idea/
