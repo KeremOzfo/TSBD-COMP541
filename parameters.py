@@ -177,7 +177,7 @@ def args_parser():
     # ==================== LOGGING AND VISUALIZATION ====================
     parser.add_argument('--save_test_samples', action='store_true',
                         help='if True, save test samples and GradCAM visualizations; if False, skip saving them')
-    parser.add_argument('--save_trigger_model', action='store_true', default=True,
+    parser.add_argument('--save_trigger_model', action='store_true', default=False,
                         help='if True, save the trained trigger model in the experiment directory')
     parser.add_argument('--latent_method', type=str, default='pca',
                         choices=['pca', 'tsne'],

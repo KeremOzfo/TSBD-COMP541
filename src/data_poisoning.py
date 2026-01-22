@@ -43,9 +43,39 @@ def poison_with_trigger_all2one(trigger_model, train_data, args):
         print("=== DATA POISONING SKIPPED ===")
         return train_data, []
     
-    poison_indices = random.sample(range(total_samples), num_poison)
+    # Filter out samples that already have the target label
+    # Only poison samples with non-target labels
+    non_target_indices = []
+    for idx in range(total_samples):
+        sample_data = train_data[idx]
+        # Extract label
+        if isinstance(sample_data, tuple):
+            y = sample_data[1]
+        else:
+            y = train_data.labels_df.loc[train_data.all_IDs[idx]]
+        
+        # Convert to int if needed
+        if isinstance(y, torch.Tensor):
+            y = y.item()
+        elif isinstance(y, np.ndarray):
+            y = int(y)
+        
+        # Only include non-target samples
+        if y != args.target_label:
+            non_target_indices.append(idx)
     
-    print(f"Poisoning {num_poison} out of {total_samples} samples")
+    print(f"Total samples: {total_samples}")
+    print(f"Non-target samples available: {len(non_target_indices)}")
+    
+    # Adjust num_poison if not enough non-target samples
+    if num_poison > len(non_target_indices):
+        print(f"WARNING: Requested {num_poison} poisoned samples, but only {len(non_target_indices)} non-target samples available")
+        num_poison = len(non_target_indices)
+    
+    # Sample from non-target indices only
+    poison_indices = random.sample(non_target_indices, num_poison)
+    
+    print(f"Poisoning {num_poison} out of {len(non_target_indices)} non-target samples")
     
     # Make DataFrames writable
     train_data.feature_df = train_data.feature_df.copy()
@@ -171,7 +201,37 @@ def silent_poison_with_trigger_all2one(trigger_model, train_data, args):
         print("=== DATA POISONING SKIPPED ===")
         return train_data, [], [], []
     
-    poison_indices = random.sample(range(total_samples), num_poison)
+    # Filter out samples that already have the target label
+    # Only poison samples with non-target labels
+    non_target_indices = []
+    for idx in range(total_samples):
+        sample_data = train_data[idx]
+        # Extract label
+        if isinstance(sample_data, tuple):
+            y = sample_data[1]
+        else:
+            y = train_data.labels_df.loc[train_data.all_IDs[idx]]
+        
+        # Convert to int if needed
+        if isinstance(y, torch.Tensor):
+            y = y.item()
+        elif isinstance(y, np.ndarray):
+            y = int(y)
+        
+        # Only include non-target samples
+        if y != args.target_label:
+            non_target_indices.append(idx)
+    
+    print(f"Total samples: {total_samples}")
+    print(f"Non-target samples available: {len(non_target_indices)}")
+    
+    # Adjust num_poison if not enough non-target samples
+    if num_poison > len(non_target_indices):
+        print(f"WARNING: Requested {num_poison} poisoned samples, but only {len(non_target_indices)} non-target samples available")
+        num_poison = len(non_target_indices)
+    
+    # Sample from non-target indices only
+    poison_indices = random.sample(non_target_indices, num_poison)
     
     # Split into clean-label and target-label samples based on lambda
     num_clean_label = int(num_poison * lambda_ratio)
@@ -181,7 +241,7 @@ def silent_poison_with_trigger_all2one(trigger_model, train_data, args):
     clean_label_indices = poison_indices[:num_clean_label]
     target_label_indices = poison_indices[num_clean_label:]
     
-    print(f"Poisoning {num_poison} samples: {num_target_label} target-label, {num_clean_label} clean-label")
+    print(f"Poisoning {num_poison} non-target samples: {num_target_label} target-label, {num_clean_label} clean-label")
     
     # Make DataFrames writable
     train_data.feature_df = train_data.feature_df.copy()
