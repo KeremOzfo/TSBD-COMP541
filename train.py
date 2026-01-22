@@ -381,9 +381,11 @@ def train_trigger_model(trigger_model, surrogate_model, train_loader, args, trai
     all_loss_dicts = []  # Accumulate loss_dict from each epoch
     
     # Early stopping variables
-    best_test_asr = 0.0
+    best_test_loss = float('inf')
     best_epoch = 0
     epochs_without_improvement = 0
+    best_trigger_state = None
+    best_surrogate_state = None
     
     # For methods that need a copy of trigger model (ultimate, inputaware, pureinputaware)
     trigger_model_prev = None
@@ -441,21 +443,34 @@ def train_trigger_model(trigger_model, surrogate_model, train_loader, args, trai
         
         # Early stopping logic
         if patience > 0:
-            if test_bd_acc > best_test_asr:
-                best_test_asr = test_bd_acc
+            if test_loss < best_test_loss:
+                best_test_loss = test_loss
                 best_epoch = epoch
                 epochs_without_improvement = 0
-                print(f"    [Early Stopping] New best ASR: {best_test_asr:.4f}")
+                # Save best model states
+                best_trigger_state = {k: v.cpu().clone() for k, v in trigger_model.state_dict().items()}
+                best_surrogate_state = {k: v.cpu().clone() for k, v in surrogate_model.state_dict().items()}
+                print(f"    [Early Stopping] New best test loss: {best_test_loss:.4f} - saved checkpoint")
             else:
                 epochs_without_improvement += 1
                 print(f"    [Early Stopping] No improvement for {epochs_without_improvement}/{patience} epochs")
                 
                 if epochs_without_improvement >= patience:
                     print(f"\n=== EARLY STOPPING TRIGGERED ===")
-                    print(f"No improvement in test ASR for {patience} epochs")
-                    print(f"Best ASR: {best_test_asr:.4f} at epoch {best_epoch+1}")
+                    print(f"No improvement in test loss for {patience} epochs")
+                    print(f"Best test loss: {best_test_loss:.4f} at epoch {best_epoch+1}")
                     print(f"Stopping at epoch {epoch+1}/{trigger_epochs}")
                     break
+    
+    # Restore best model if we saved one
+    if best_trigger_state is not None:
+        trigger_model.load_state_dict(best_trigger_state)
+        surrogate_model.load_state_dict(best_surrogate_state)
+        print(f"\n[Restored best model from epoch {best_epoch+1} with test loss {best_test_loss:.4f}]")
+    if best_trigger_state is not None:
+        trigger_model.load_state_dict(best_trigger_state)
+        surrogate_model.load_state_dict(best_surrogate_state)
+        print(f"\n[Restored best model from epoch {best_epoch+1} with test loss {best_test_loss:.4f}]")
     
     # Aggregate loss_dict values across epochs (compute mean per epoch)
     aggregated_losses = {}
@@ -591,9 +606,12 @@ def train_trigger_model_with_mask(trigger_model, surrogate_model, train_loader, 
     all_loss_dicts = []
     
     # Early stopping variables
-    best_test_asr = 0.0
+    best_test_loss = float('inf')
     best_epoch = 0
     epochs_without_improvement = 0
+    best_trigger_state = None
+    best_surrogate_state = None
+    best_mask_state = None
     
     for epoch in range(trigger_epochs):
         train_loss, loss_dict, clean_acc, bd_acc = epoch_inputaware_masking(
@@ -627,21 +645,37 @@ def train_trigger_model_with_mask(trigger_model, surrogate_model, train_loader, 
         
         # Early stopping logic
         if patience > 0:
-            if test_bd_acc > best_test_asr:
-                best_test_asr = test_bd_acc
+            if test_loss < best_test_loss:
+                best_test_loss = test_loss
                 best_epoch = epoch
                 epochs_without_improvement = 0
-                print(f"    [Early Stopping] New best ASR: {best_test_asr:.4f}")
+                # Save best model states
+                best_trigger_state = {k: v.cpu().clone() for k, v in trigger_model.state_dict().items()}
+                best_surrogate_state = {k: v.cpu().clone() for k, v in surrogate_model.state_dict().items()}
+                best_mask_state = {k: v.cpu().clone() for k, v in mask_model.state_dict().items()}
+                print(f"    [Early Stopping] New best test loss: {best_test_loss:.4f} - saved checkpoint")
             else:
                 epochs_without_improvement += 1
                 print(f"    [Early Stopping] No improvement for {epochs_without_improvement}/{patience} epochs")
                 
                 if epochs_without_improvement >= patience:
                     print(f"\n=== EARLY STOPPING TRIGGERED ===")
-                    print(f"No improvement in test ASR for {patience} epochs")
-                    print(f"Best ASR: {best_test_asr:.4f} at epoch {best_epoch+1}")
+                    print(f"No improvement in test loss for {patience} epochs")
+                    print(f"Best test loss: {best_test_loss:.4f} at epoch {best_epoch+1}")
                     print(f"Stopping at epoch {epoch+1}/{trigger_epochs}")
                     break
+    
+    # Restore best model if we saved one
+    if best_trigger_state is not None:
+        trigger_model.load_state_dict(best_trigger_state)
+        surrogate_model.load_state_dict(best_surrogate_state)
+        mask_model.load_state_dict(best_mask_state)
+        print(f"\n[Restored best model from epoch {best_epoch+1} with test loss {best_test_loss:.4f}]")
+    if best_trigger_state is not None:
+        trigger_model.load_state_dict(best_trigger_state)
+        surrogate_model.load_state_dict(best_surrogate_state)
+        mask_model.load_state_dict(best_mask_state)
+        print(f"\n[Restored best model from epoch {best_epoch+1} with test loss {best_test_loss:.4f}]")
     
     # Aggregate losses
     aggregated_losses = {}

@@ -16,6 +16,8 @@ from src.models.target_models.MLPClassifier import Model as MLPClassifier
 from src.models.target_models.TCN import Model as TCNClassifier
 from src.models.target_models.BiRNN import Model as BiRNNClassifier
 from src.models.target_models.dlinear import Model as DLinear
+from src.models.target_models.FEDformer import Model as FEDformer
+from src.models.target_models.autoformer import Model as Autoformer
 #########Model Import (Trigger Models)#########
 from src.models.trigger_models.bd_TimesNet.bd_TimesNet import Model as Bd_TimesNet
 from src.models.trigger_models.bd_patchTST.bd_patchTST import Model as Bd_PatchTST
@@ -55,7 +57,9 @@ target_model_dict = {
     'mlp': MLPClassifier,
     'tcn': TCNClassifier,
     'birnn': BiRNNClassifier,
-    'dlinear': DLinear
+    'dlinear': DLinear,
+    'fedformer': FEDformer,
+    'autoformer': Autoformer
 }
 
 trigger_model_dict = {

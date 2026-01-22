@@ -108,7 +108,6 @@ def epoch_pure_input_aware(
     p_attack = getattr(args, 'p_attack', 0.4)   # Attack mode probability
     p_cross = getattr(args, 'p_cross', 0.2)     # Cross-trigger probability
     lambda_div = getattr(args, 'lambda_div', 1.0)
-    lambda_reg = getattr(args, 'lambda_reg', 1e-3)
     
     assert p_attack + p_cross < 1.0, "p_attack + p_cross must be < 1"
     

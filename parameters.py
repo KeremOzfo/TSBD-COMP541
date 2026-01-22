@@ -16,7 +16,7 @@ def args_parser():
                     choices=['clean', 'backdoor', 'test'],
                     help='training mode (test = evaluate pre-trained trigger model)')
     parser.add_argument('--model', type=str, default='TimesNet',
-                        choices=['TimesNet', 'lstm', 'PatchTST', 'iTransformer', 'TimeMixer', 'resnet', 'mlp', 'nonstationary_transformer', 'TCN', 'BiRNN', 'DLinear'],
+                        choices=['TimesNet', 'lstm', 'PatchTST', 'iTransformer', 'TimeMixer', 'resnet', 'mlp', 'nonstationary_transformer', 'TCN', 'BiRNN', 'FEDformer', 'DLinear', 'Autoformer'],
                         help='main model architecture to use')
     parser.add_argument('--use_pretrained_trigger', action='store_true',
                         help='use pre-trained trigger model')
@@ -70,7 +70,7 @@ def args_parser():
                         choices=['itst', 'patchtst', 'cnn', 'timesnet', 'ctimesnet', 'ccnn', 'cpatchtst', 'citst', 'ctimesfm', 'ccnn_cae'],
                         help='trigger model architecture')
     parser.add_argument('--surrogate_model', type=str, default=None,
-                        choices=['timesnet', 'cnn', 'patchTST', 'itst', 'lstm', 'resnet', 'mlp',None],
+                        choices=['timesnet', 'cnn', 'patchTST', 'itst', 'lstm', 'resnet', 'mlp', 'fedformer', 'dlinear', 'autoformer', None],
                         help='surrogate classifier model type for trigger training, if None use same as main model')
     parser.add_argument('--trigger_epochs', type=int, default=5,
                         help='number of epochs for training the trigger model')

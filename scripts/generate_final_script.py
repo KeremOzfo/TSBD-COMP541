@@ -35,12 +35,12 @@ with open(csv_path, 'r') as f:
 # Focus on citst and cpatchtst
 #TRIGGER_MODELS = ['citst', 'cpatchtst','ccnn','ccnn_cae']
 
-TRIGGER_MODELS = ['citst', 'cpatchtst', 'ctimesnet']
+TRIGGER_MODELS = ['citst', 'cpatchtst', 'ctimesnet','ccnn','ccnn_cae']
 # Main classifier models to explore
-MAIN_MODELS = ['TimesNet','TCN','lstm','nonstationary_transformer','mlp','resnet','iTransformer']
+MAIN_MODELS = ['TimesNet','TCN','lstm','mlp','resnet','FEDformer','Autoformer']
 
 # All methods except defeat
-TRAINING_METHODS = ['vanilla', 'marksman', 'pureinputaware','frequency']
+TRAINING_METHODS = ['vanilla', 'marksman', 'pureinputaware']
 
 
 # ==================== TOP 3 OPTIMIZER CONFIGURATIONS (Based on Analysis) ====================
@@ -56,7 +56,7 @@ OPTIMIZER_CONFIGS_TOP3 = {
         'surrogate_lr': 1e-3,
         'surrogate_weight_decay': 5e-4,
         'surrogate_L2_penalty': 0.0,
-        'description': 'RANK 1: Best performing - Adam/SGD (CA: 0.8162)'
+        'description':'Base'
     },
 
     'adam_sgd_best': {
@@ -108,183 +108,15 @@ METHOD_HYPERPARAMS = {
     ],
     'marksman': [
         {'name': 'balanced', 'params': {'marksman_alpha': 0.5, 'marksman_beta': 0.0, 'marksman_update_T': 1}},
-        {'name': 'with_penalty', 'params': {'marksman_alpha': 0.5, 'marksman_beta': 0.001, 'marksman_update_T': 1}},
         {'name': 'slow_update', 'params': {'marksman_alpha': 0.5, 'marksman_beta': 0.0, 'marksman_update_T': 3}},
-        {'name': 'slow_update_with_penalty', 'params': {'marksman_alpha': 0.5, 'marksman_beta': 0.001, 'marksman_update_T': 3}},
-    ],
-    'diversity': [
-        {'name': 'low_div', 'params': {'div_reg': 0.5, 'poisoning_ratio_train': 0.1}},
-        {'name': 'standard', 'params': {'div_reg': 1.0, 'poisoning_ratio_train': 0.1}},
-        {'name': 'high_div', 'params': {'div_reg': 2.0, 'poisoning_ratio_train': 0.1}},
-        {'name': 'very_high_div', 'params': {'div_reg': 5.0, 'poisoning_ratio_train': 0.1}},
-        {'name': 'high_poison', 'params': {'div_reg': 1.0, 'poisoning_ratio_train': 0.2}},
-        {'name': 'low_poison', 'params': {'div_reg': 1.0, 'poisoning_ratio_train': 0.05}},
-    ],
-    'frequency': [
-        {'name': 'standard', 'params': {'lambda_freq': 1.0, 'freq_lambda': 0.05}},
-    ],
-    'inputaware': [
-        {'name': 'balanced', 'params': {'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0}},
-        {'name': 'high_attack', 'params': {'p_attack': 0.7, 'p_cross': 0.1, 'lambda_cross': 1.0}},
-        {'name': 'low_attack', 'params': {'p_attack': 0.3, 'p_cross': 0.1, 'lambda_cross': 1.0}},
-        {'name': 'high_cross', 'params': {'p_attack': 0.5, 'p_cross': 0.2, 'lambda_cross': 1.0}},
-        {'name': 'low_cross', 'params': {'p_attack': 0.5, 'p_cross': 0.05, 'lambda_cross': 1.0}},
-        {'name': 'strong_cross_loss', 'params': {'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 2.0}},
-        {'name': 'weak_cross_loss', 'params': {'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 0.5}},
-        {'name': 'aggressive', 'params': {'p_attack': 0.7, 'p_cross': 0.2, 'lambda_cross': 2.0}},
-    ],
-    'inputaware_masking': [
-        # Balanced baseline configurations
-        {'name': 'balanced', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        
-        # Vary attack probability
-        {'name': 'high_attack', 'params': {
-            'p_attack': 0.7, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        {'name': 'low_attack', 'params': {
-            'p_attack': 0.3, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        
-        # Vary cross-entropy loss
-        {'name': 'high_cross', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.2, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        {'name': 'strong_cross_loss', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 2.0,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        {'name': 'weak_cross_loss', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 0.5,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        
-        # Vary mask density (sparsity control)
-        {'name': 'sparse_mask', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.02, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        {'name': 'dense_mask', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.1, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        {'name': 'very_dense_mask', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.2, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        
-        # Vary mask learning rate
-        {'name': 'low_mask_lr', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 5e-4, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        {'name': 'high_mask_lr', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 5e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        {'name': 'very_high_mask_lr', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 1e-2, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 20
-        }},
-        
-        # Vary mask weight decay (regularization)
-        {'name': 'light_mask_reg', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 1e-4,
-            'mask_pretrain_epochs': 20
-        }},
-        {'name': 'heavy_mask_reg', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 1e-3,
-            'mask_pretrain_epochs': 20
-        }},
-        
-        # Vary mask pretrain epochs
-        {'name': 'short_pretrain', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 10
-        }},
-        {'name': 'long_pretrain', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 40
-        }},
-        {'name': 'very_long_pretrain', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 60
-        }},
-        
-        # Combined aggressive configurations
-        {'name': 'aggressive', 'params': {
-            'p_attack': 0.7, 'p_cross': 0.2, 'lambda_cross': 2.0,
-            'mask_density': 0.1, 'mask_lr': 5e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 40
-        }},
-        {'name': 'aggressive_sparse', 'params': {
-            'p_attack': 0.7, 'p_cross': 0.2, 'lambda_cross': 2.0,
-            'mask_density': 0.02, 'mask_lr': 5e-3, 'mask_weight_decay': 1e-4,
-            'mask_pretrain_epochs': 40
-        }},
-        
-        # Conservative configurations
-        {'name': 'conservative', 'params': {
-            'p_attack': 0.3, 'p_cross': 0.05, 'lambda_cross': 0.5,
-            'mask_density': 0.02, 'mask_lr': 5e-4, 'mask_weight_decay': 1e-3,
-            'mask_pretrain_epochs': 10
-        }},
-        
-        # Optimal combination explorations
-        {'name': 'dense_slow_long', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.1, 'mask_lr': 5e-4, 'mask_weight_decay': 1e-4,
-            'mask_pretrain_epochs': 40
-        }},
-        {'name': 'sparse_fast_short', 'params': {
-            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
-            'mask_density': 0.02, 'mask_lr': 5e-3, 'mask_weight_decay': 0.0,
-            'mask_pretrain_epochs': 10
-        }},
     ],
     'pureinputaware': [
-        {'name': 'balanced', 'params': {'p_attack': 0.5, 'lambda_div': 1.0, 'lambda_cross': 1.0}},    
+        {'name': 'balanced', 'params': {'p_attack': 0.5, 'lambda_div': 1.0, 'p_cross': 0.1}},    
         ],
-    'ultimate': [
-        {'name': 'balanced', 'params': {'lambda_freq': 1.0, 'lambda_div': 1.0, 'lambda_reg': 1e-3, 'lambda_cross': 1.0, 'p_attack': 0.5, 'p_cross': 0.1}},
-        {'name': 'freq_focused', 'params': {'lambda_freq': 3.0, 'lambda_div': 0.5, 'lambda_reg': 1e-3, 'lambda_cross': 0.5, 'p_attack': 0.5, 'p_cross': 0.1}},
-        {'name': 'div_focused', 'params': {'lambda_freq': 0.5, 'lambda_div': 3.0, 'lambda_reg': 1e-3, 'lambda_cross': 0.5, 'p_attack': 0.5, 'p_cross': 0.1}},
-        {'name': 'cross_focused', 'params': {'lambda_freq': 0.5, 'lambda_div': 0.5, 'lambda_reg': 1e-3, 'lambda_cross': 3.0, 'p_attack': 0.5, 'p_cross': 0.2}},
-        {'name': 'high_reg', 'params': {'lambda_freq': 1.0, 'lambda_div': 1.0, 'lambda_reg': 1e-2, 'lambda_cross': 1.0, 'p_attack': 0.5, 'p_cross': 0.1}},
-        {'name': 'aggressive', 'params': {'lambda_freq': 2.0, 'lambda_div': 2.0, 'lambda_reg': 1e-3, 'lambda_cross': 2.0, 'p_attack': 0.7, 'p_cross': 0.15}},
-    ]
 }
 
 # ==================== TRAINING DYNAMICS ====================
 WARMUP_EPOCHS = [0]  # Different warmup strategies
-
-# ==================== GRADIENT CLIPPING CONFIGURATIONS ====================
-GRAD_CLIP_CONFIGS = [
-    {'trigger_grad_clip': 0.0, 'surrogate_grad_clip': 0.0, 'name': 'no_clip'},
-    {'trigger_grad_clip': 10.0, 'surrogate_grad_clip': 10.0, 'name': 'clip_10'},
-]
 
 # ==================== POISONING STRATEGIES ====================
 POISONING_CONFIGS = [
@@ -317,8 +149,8 @@ def get_patch_config(seq_len):
     else:
         return 32, 16
 
-def generate_script_command(dataset, tmodel, method, opt_config, method_params, 
-                            warmup, trigger_epochs, poison_config, grad_clip_config):
+def generate_script_command(dataset, main_model, tmodel, method, opt_config, method_params, 
+                            warmup, trigger_epochs, poison_config):
     """Generate a single training command with all parameters."""
     name = dataset['name']
     seq_len = dataset['seq_len']
@@ -326,16 +158,14 @@ def generate_script_command(dataset, tmodel, method, opt_config, method_params,
     patch_len, stride = get_patch_config(seq_len)
     
     # Base command
-    cmd = f"python -u main.py --train_mode backdoor --method {method} --Tmodel {tmodel} --bd_type all2all"
+    cmd = f"python -u main.py --train_mode backdoor --model {main_model} --method {method} --Tmodel {tmodel} --bd_type all2all"
     cmd += f" --root_path ./dataset/{name}"
     cmd += f" --seq_len {seq_len}"
     cmd += f" --trigger_epochs {trigger_epochs}"
+    cmd += f" --trigger_patience 10"
     cmd += f" --bd_train_epochs 40"
     cmd += f" --warmup_epochs {warmup}"
     cmd += f" --target_label 0"
-    
-    # Enable auto architecture and batch size selection
-    cmd += " --auto_bd_arch True --auto_batch_size True"
     
     # Patch parameters (still needed for patching models)
     cmd += f" --patch_len {patch_len}"
@@ -350,9 +180,16 @@ def generate_script_command(dataset, tmodel, method, opt_config, method_params,
     cmd += f" --surrogate_weight_decay {opt_config['surrogate_weight_decay']}"
     cmd += f" --surrogate_L2_penalty {opt_config['surrogate_L2_penalty']}"
     
-    # Gradient clipping parameters
-    cmd += f" --trigger_grad_clip {grad_clip_config['trigger_grad_clip']}"
-    cmd += f" --surrogate_grad_clip {grad_clip_config['surrogate_grad_clip']}"
+    # Conditional gradient clipping based on learning rate
+    if opt_config['trigger_lr'] > 0.01:
+        cmd += f" --trigger_grad_clip 10.0"
+    else:
+        cmd += f" --trigger_grad_clip 0.0"
+    
+    if opt_config['surrogate_lr'] > 0.01:
+        cmd += f" --surrogate_grad_clip 10.0"
+    else:
+        cmd += f" --surrogate_grad_clip 0.0"
     
     # Poisoning configuration
     cmd += f" --poisoning_ratio {poison_config['poisoning_ratio']}"
@@ -387,129 +224,100 @@ def main():
         
         dataset_total = 0
         method_counts = {}
-        method_scripts = {}
         
-        # Generate individual method scripts
+        # Generate single script for this dataset
+        dataset_script = f"#!/bin/bash\n"
+        dataset_script += f"# Dataset: {dataset_name}\n"
+        dataset_script += f"# Seq Len: {ds['seq_len']}, Variates: {ds['num_variates']}, Classes: {ds['num_classes']}\n\n"
+        
         for method in TRAINING_METHODS:
-            method_script = f"#!/bin/bash\n"
-            method_script += f"# Dataset: {dataset_name}\n"
-            method_script += f"# Method: {method}\n"
-            method_script += f"# Seq Len: {ds['seq_len']}, Variates: {ds['num_variates']}, Classes: {ds['num_classes']}\n\n"
+            dataset_script += f"\n{'#'*70}\n"
+            dataset_script += f"# METHOD: {method.upper()}\n"
+            dataset_script += f"{'#'*70}\n\n"
             
             method_count = 0
             
-            for tmodel in TRIGGER_MODELS:
-                method_script += f"\n# ========== TRIGGER MODEL: {tmodel} ==========\n\n"
+            for main_model in MAIN_MODELS:
+                dataset_script += f"\n# ========== MAIN MODEL: {main_model} ==========\n\n"
                 
-                # Calculate trigger epochs based on number of classes
-                trigger_epochs = get_trigger_epochs(ds['num_classes'])
-                
-                # Iterate through all configurations
-                for opt_name, opt_config in OPTIMIZER_CONFIGS.items():
-                    for method_config in METHOD_HYPERPARAMS[method]:
-                        for warmup in WARMUP_EPOCHS:
-                            for grad_clip_config in GRAD_CLIP_CONFIGS:
+                for tmodel in TRIGGER_MODELS:
+                    # Skip citst for univariate datasets (citst requires multivariate data)
+                    if tmodel == 'citst' and ds['num_variates'] == 1:
+                        dataset_script += f"\n# ---- Trigger Model: {tmodel} (SKIPPED - univariate dataset) ----\n\n"
+                        continue
+                    
+                    dataset_script += f"\n# ---- Trigger Model: {tmodel} ----\n\n"
+                    
+                    # Calculate trigger epochs based on number of classes
+                    trigger_epochs = get_trigger_epochs(ds['num_classes'])
+                    
+                    # Iterate through all configurations
+                    for opt_name, opt_config in OPTIMIZER_CONFIGS.items():
+                        for method_config in METHOD_HYPERPARAMS[method]:
+                            for warmup in WARMUP_EPOCHS:
                                 for poison_config in POISONING_CONFIGS:
                                     
+                                    # Determine grad clipping status for comment
+                                    trigger_clip = "clip" if opt_config['trigger_lr'] > 0.01 else "no_clip"
+                                    surrogate_clip = "clip" if opt_config['surrogate_lr'] > 0.01 else "no_clip"
+                                    clip_status = f"{trigger_clip}/{surrogate_clip}"
+                                    
                                     # Generate comment
-                                    comment = f"# {tmodel} | opt={opt_name} | "
+                                    comment = f"# {method} | {main_model} | {tmodel} | opt={opt_name} | "
                                     comment += f"cfg={method_config['name']} | warmup={warmup} | "
-                                    comment += f"grad_clip={grad_clip_config['name']} | "
+                                    comment += f"grad_clip={clip_status} | "
                                     comment += f"epochs={trigger_epochs} | poison={poison_config['name']}\n"
                                     
-                                    method_script += comment
+                                    dataset_script += comment
                                     
                                     # Generate command
                                     cmd = generate_script_command(
-                                        ds, tmodel, method, opt_config,
+                                        ds, main_model, tmodel, method, opt_config,
                                         method_config['params'], warmup, trigger_epochs,
-                                        poison_config, grad_clip_config
+                                        poison_config
                                     )
                                 
-                                    method_script += cmd + "\n"
+                                    dataset_script += cmd + "\n"
                                     
                                     method_count += 1
                                     dataset_total += 1
             
-            # Save individual method script
-            method_file = os.path.join(dataset_dir, f'{method}.sh')
-            with open(method_file, 'w', newline='\n') as f:
-                f.write(method_script)
-            
-            method_scripts[method] = method_script
             method_counts[method] = method_count
             print(f"  ✓ {method}: {method_count} experiments")
         
-        # Concatenate all method scripts into one combined script
-        combined_script = f"#!/bin/bash\n"
-        combined_script += f"# RIGOROUS PARAMETER EXPLORATION - ALL METHODS\n"
-        combined_script += f"# Dataset: {dataset_name}\n"
-        combined_script += f"# Total Experiments: {dataset_total}\n"
-        combined_script += f"# Seq Len: {ds['seq_len']}, Variates: {ds['num_variates']}, Classes: {ds['num_classes']}\n\n"
-        
-        for method in TRAINING_METHODS:
-            combined_script += f"\n{'#'*70}\n"
-            combined_script += f"# METHOD: {method.upper()}\n"
-            combined_script += f"{'#'*70}\n\n"
-            # Add the method script content (skip the shebang and header)
-            lines = method_scripts[method].split('\n')
-            # Skip first 4 lines (shebang + 3 comment lines)
-            combined_script += '\n'.join(lines[4:]) + '\n'
-        
-        # Save combined script as both files (run_all_methods.sh and {dataset_name}_all_methods.sh)
-        # run_all_methods.sh contains all python commands concatenated
-        master_file = os.path.join(dataset_dir, 'run_all_methods.sh')
-        with open(master_file, 'w', newline='\n') as f:
-            f.write(combined_script)
-        
-        # Also save as {dataset_name}_all_methods.sh for consistency
-        combined_file = os.path.join(dataset_dir, f'{dataset_name}_all_methods.sh')
-        with open(combined_file, 'w', newline='\n') as f:
-            f.write(combined_script)
+        # Save single dataset script
+        dataset_file = os.path.join(dataset_dir, f'{dataset_name}.sh')
+        with open(dataset_file, 'w', newline='\n') as f:
+            f.write(dataset_script)
         
         # Generate dataset-specific README
         readme = f"# Rigorous Exploration: {dataset_name}\n\n"
         readme += f"## Dataset Info\n\n"
         readme += f"- **Sequence Length**: {ds['seq_len']}\n"
-        readme += f"- **Master script (calls all methods)**: `run_all_methods.sh`\n"
-        readme += f"- **Combined script (concatenated)**: `{dataset_name}_all_methods.sh`\n\n"
-        
-        readme += f"## How to Run\n\n"
-        readme += f"### Run All Experiments (Sequential by Method)\n"
-        readme += f"```bash\n"
-        readme += f"bash run_all_methods.sh\n"
-        readme += f"```\n\n"
-        
-        readme += f"### Run All Experiments (Concatenated\n\n"
+        readme += f"- **Number of Variates**: {ds['num_variates']}\n"
+        readme += f"- **Number of Classes**: {ds['num_classes']}\n"
+        readme += f"- **Training Samples**: {ds['num_train']}\n"
+        readme += f"- **Test Samples**: {ds['num_test']}\n\n"
         
         readme += f"## Experiments\n\n"
         readme += f"**Total Experiments**: {dataset_total}\n\n"
         
         readme += f"### By Method\n\n"
         for method, count in method_counts.items():
-            readme += f"- **{method}**: {count} experiments → `{method}.sh`\n"
+            readme += f"- **{method}**: {count} experiments\n"
         
-        readme += f"\n## Available Scripts\n\n"
-        readme += f"- **Individual method scripts**: `{', '.join([m + '.sh' for m in TRAINING_METHODS])}`\n"
-        readme += f"- **All methods (concatenated)**: `run_all_methods.sh` or `{dataset_name}_all_methods.sh` (same file)\n\n"
+        readme += f"\n## Script\n\n"
+        readme += f"- **Single dataset script**: `{dataset_name}.sh`\n\n"
         
         readme += f"## How to Run\n\n"
-        readme += f"### Run All Experiments (All Methods)\n"
         readme += f"```bash\n"
-        readme += f"bash run_all_methods.sh\n"
-        readme += f"# OR\n"
-        readme += f"bash {dataset_name}_all_methods.sh\n"
-        readme += f"```\n\n"
-        
-        readme += f"### Run Specific Method\n"
-        readme += f"```bash\n"
-        readme += f"bash vanilla.sh      # or marksman.sh, pureinputaware.sh\n"
+        readme += f"bash {dataset_name}.sh\n"
         readme += f"```\n\n"
         
         readme += f"### Run Subset\n"
         readme += f"```bash\n"
         readme += f"# First 100 experiments only\n"
-        readme += f"head -200 {dataset_name}_all_methods.sh > {dataset_name}_subset.sh\n"
+        readme += f"head -200 {dataset_name}.sh > {dataset_name}_subset.sh\n"
         readme += f"bash {dataset_name}_subset.sh\n"
         readme += f"```\n"
         
@@ -542,7 +350,7 @@ def main():
     for ds_sum in dataset_summaries:
         summary += f"### {ds_sum['name']}\n"
         summary += f"**Total**: {ds_sum['total']} experiments\n"
-        summary += f"**Script**: `rigorous_per_dataset/{ds_sum['name']}/{ds_sum['name']}_all_methods.sh`\n\n"
+        summary += f"**Script**: `{ds_sum['name']}/{ds_sum['name']}.sh`\n\n"
         summary += "Methods:\n"
         for method, count in ds_sum['methods'].items():
             summary += f"- {method}: {count} experiments\n"
@@ -573,16 +381,16 @@ def main():
     summary += "## How to Use\n\n"
     summary += "### Run All Experiments for One Dataset\n"
     summary += "```bash\n"
-    summary += "cd rigorous_per_dataset/BasicMotions\n"
-    summary += "bash run_all_methods.sh\n"
+    summary += "cd final_rigorous_scripts/BasicMotions\n"
+    summary += "bash BasicMotions.sh\n"
     summary += "```\n\n"
     
     summary += "### Run All Experiments Across All Datasets\n"
     summary += "```bash\n"
-    summary += "for dataset_dir in rigorous_per_dataset/*/; do\n"
+    summary += "for dataset_dir in final_rigorous_scripts/*/; do\n"
     summary += "  dataset=$(basename \"$dataset_dir\")\n"
     summary += "  cd \"$dataset_dir\"\n"
-    summary += "  bash \"${dataset}_all_methods.sh\"\n"
+    summary += "  bash \"${dataset}.sh\"\n"
     summary += "  cd ../..\n"
     summary += "done\n"
     summary += "```\n\n"
@@ -609,21 +417,21 @@ def main():
         f.write(summary)
     
     print(f"\n{'='*70}")
-    print(f"✓ PER-DATASET SCRIPTS GENERATED")
+    print(f"✓ DATASET SCRIPTS GENERATED")
     print(f"{'='*70}")
     print(f"Total Experiments: {total_experiments_all}")
     print(f"Datasets: {len(datasets)}")
     print(f"Trigger Models: {len(TRIGGER_MODELS)}")
     print(f"Methods: {len(TRAINING_METHODS)}")
     print(f"Optimizer Configs: {len(OPTIMIZER_CONFIGS)}")
-    print(f"\nOutput Directory: scripts/rigorous_per_dataset/")
-    print(f"Summary: scripts/rigorous_per_dataset/README.md")
+    print(f"\nOutput Directory: scripts/final_rigorous_scripts/")
+    print(f"Summary: scripts/final_rigorous_scripts/README.md")
     print(f"{'='*70}\n")
     
-    print(f"Architecture and batch size are auto-selected based on dataset characteristics")
-    print(f"Trigger epochs are dynamically calculated: 15 × num_classes per dataset")
-    print(f"Each dataset has individual method scripts + one combined script")
-    print(f"Run experiments on one dataset at a time for focused exploration!")
+    print(f"Each dataset has ONE script: <dataset_name>.sh")
+    print(f"Architecture and batch size are auto-selected")
+    print(f"Trigger epochs: 10 × num_classes (max 200)")
+    print(f"citst skipped for univariate datasets")
 
 if __name__ == '__main__':
     main()

@@ -41,74 +41,144 @@ def load_dataset_info(csv_path: str | Path) -> Dict[str, DatasetInfo]:
 
 
 def complexity_score(info: DatasetInfo) -> float:
-    # A simple, monotonic complexity proxy
-    return (
-        math.log2(max(info.seq_len, 1))
-        + math.log2(max(info.num_variates, 1) + 1)
-        + math.log2(max(info.num_classes, 1) + 1)
-        + math.log10(max(info.num_train, 1) + 1)
-    )
+    """
+    Compute complexity score emphasizing seq_len as primary driver.
+    Inspired by Time-Series-Library classification scripts where longer sequences
+    and higher dimensionality require larger models.
+    """
+    # Primary: sequence length (most important for trigger modeling)
+    seq_component = math.log2(max(info.seq_len, 1)) * 0.50
+    
+    # Secondary: num_variates (critical for multivariate series)
+    var_component = math.log2(max(info.num_variates, 1) + 1) * 0.30
+    
+    # Tertiary: num_classes (important for classification head capacity)
+    cls_component = math.log2(max(info.num_classes, 1) + 1) * 0.15
+    
+    # Minor: dataset size (affects batch size more than architecture)
+    size_component = math.log10(max(info.num_train, 1) + 1) * 0.05
+    
+    return seq_component + var_component + cls_component + size_component
 
 
 def choose_bd_arch(info: DatasetInfo) -> Dict[str, int | float | str]:
+    """
+    Choose backdoor trigger architecture based on dataset characteristics.
+    
+    Follows Time-Series-Library patterns:
+    - TimesNet uses d_model 32-64, e_layers 2-3
+    - PatchTST uses d_model 128, e_layers 3
+    - Trigger models need to scale with seq_len, num_variates, num_classes
+    - e_layers capped at 2 for efficiency (triggers are simpler than full models)
+    """
     score = complexity_score(info)
-
-    # Heuristic tiers (small/medium/large/very large)
-    # Relaxed thresholds to reduce xlarge selections
-    if score < 10:
-        d_model, n_heads, e_layers = 32, 2, 1
+    
+    # Encoder layers: cap at 2 as requested, use 1 for simpler datasets
+    # Very simple datasets (short seq, few variates/classes) use 1 layer
+    if score < 7.0:
+        e_layers = 1
+    else:
+        e_layers = 2
+    
+    # d_model selection based on complexity score and specific dataset characteristics
+    # Range from 32 to 512 as requested
+    # Adjusted thresholds based on actual dataset distribution
+    
+    # Extra small: very short sequences (<50), few variates (<5), few classes (<5)
+    if score < 4.5:
+        d_model = 32
+    # Small: short sequences (<150), moderate variates/classes
+    elif score < 5.5:
+        d_model = 64
+    # Medium-small: moderate sequences (150-400), moderate dimensionality
+    elif score < 6.5:
+        d_model = 128
+    # Medium: longer sequences (400-800) or high variates/classes
+    elif score < 7.5:
+        d_model = 192
+    # Medium-large: long sequences (800-1200) or very high dimensionality
+    elif score < 8.5:
+        d_model = 256
+    # Large: very long sequences (>1200) or extremely high variates
+    elif score < 9.5:
+        d_model = 384
+    # Extra large: extreme complexity
+    else:
+        d_model = 512
+    
+    # Ensure d_model is divisible by valid head counts
+    # Prefer 4 or 8 heads for better parallelism
+    candidate_heads = [2, 4, 8, 16]
+    valid_heads = [h for h in candidate_heads if d_model % h == 0]
+    
+    # Choose largest valid head count that keeps per-head dimension reasonable (32-128)
+    n_heads = 2  # fallback
+    for h in reversed(valid_heads):
+        if 32 <= d_model // h <= 128:
+            n_heads = h
+            break
+    
+    # d_ff typically 2x or 4x d_model in transformers
+    # Time-Series-Library uses 2x for most cases
+    d_ff = d_model * 2
+    
+    # Tier labels for logging
+    if d_model <= 64:
         tier = "small"
-    elif score < 14.0:
-        d_model, n_heads, e_layers = 64, 4, 2
+    elif d_model <= 128:
         tier = "medium"
-    elif score < 18.0:
-        d_model, n_heads, e_layers = 96, 4, 3
+    elif d_model <= 256:
         tier = "large"
     else:
-        d_model, n_heads, e_layers = 128, 8, 3
         tier = "xlarge"
-
-    # Ensure divisibility
-    if d_model % n_heads != 0:
-        d_model = d_model - (d_model % n_heads)
-
-    d_ff = d_model * 2
-
+    
     return {
-        "d_model_bd": d_model,
-        "d_ff_bd": d_ff,
-        "e_layers_bd": e_layers,
-        "n_heads_bd": n_heads,
+        "d_model_bd": int(d_model),
+        "d_ff_bd": int(d_ff),
+        "e_layers_bd": int(e_layers),
+        "n_heads_bd": int(n_heads),
         "complexity_score": score,
         "tier": tier,
     }
 
 
 def choose_batch_size(info: DatasetInfo) -> Dict[str, int | str]:
-    # Primary driver: number of training samples
+    """
+    Choose batch size based on dataset size and memory considerations.
+    Time-Series-Library uses batch_size=16 for most classification tasks.
+    """
+    # Start with a base batch size following Time-Series-Library convention
+    # Most classification scripts use 16
+    bs = 16
+    
+    # Adjust based on dataset size
     n = info.num_train
-    if n < 200:
-        bs = 16
+    if n < 100:
+        bs = 8  # Very small datasets
     elif n < 500:
-        bs = 32
-    elif n < 1000:
-        bs = 64
+        bs = 16
     elif n < 2000:
-        bs = 128
+        bs = 32
     elif n < 5000:
-        bs = 128
+        bs = 64
     else:
-        bs = 256
-
-    # Adjust for very large sequences/variates
-    seq_var = info.seq_len * max(info.num_variates, 1)
-    if seq_var > 50000:
-        bs = max(4, bs // 2)
-    if seq_var > 150000:
-        bs = max(4, bs // 2)
-
-    # Clamp to a reasonable range
-    bs = int(min(max(bs, 4), 512))
+        bs = 128
+    
+    # Memory constraint: reduce for very long sequences or high dimensionality
+    # Each sample's memory ~ seq_len * num_variates
+    memory_footprint = info.seq_len * max(info.num_variates, 1)
+    
+    # Aggressive reduction for very large footprints
+    if memory_footprint > 100000:  # e.g., seq_len=1000, variates=100
+        bs = max(4, bs // 4)
+    elif memory_footprint > 50000:   # e.g., seq_len=1000, variates=50
+        bs = max(8, bs // 2)
+    elif memory_footprint > 20000:   # e.g., seq_len=400, variates=50
+        bs = max(8, bs // 2)
+    
+    # Ensure reasonable range
+    bs = int(min(max(bs, 4), 256))
+    
     return {"batch_size": bs}
 
 
