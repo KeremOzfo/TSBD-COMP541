@@ -48,6 +48,17 @@ TRAINING_METHODS = ['vanilla', 'marksman', 'pureinputaware','frequency']
 # Keeping only these 3 to reduce search space while maintaining performance
 OPTIMIZER_CONFIGS_TOP3 = {
     # RANK 1: Best overall - Adam for trigger, SGD for surrogate (Mean CA: 0.8162)
+    'adam_sgd_base': {
+        'trigger_opt': 'adam',
+        'trigger_lr': 1e-3,
+        'trigger_weight_decay': 0.0,
+        'surrogate_opt': 'sgd',
+        'surrogate_lr': 1e-3,
+        'surrogate_weight_decay': 5e-4,
+        'surrogate_L2_penalty': 0.0,
+        'description': 'RANK 1: Best performing - Adam/SGD (CA: 0.8162)'
+    },
+
     'adam_sgd_best': {
         'trigger_opt': 'adam',
         'trigger_lr': 1e-3,
@@ -267,12 +278,11 @@ METHOD_HYPERPARAMS = {
 }
 
 # ==================== TRAINING DYNAMICS ====================
-WARMUP_EPOCHS = [0, 5]  # Different warmup strategies
+WARMUP_EPOCHS = [0]  # Different warmup strategies
 
 # ==================== GRADIENT CLIPPING CONFIGURATIONS ====================
 GRAD_CLIP_CONFIGS = [
     {'trigger_grad_clip': 0.0, 'surrogate_grad_clip': 0.0, 'name': 'no_clip'},
-    {'trigger_grad_clip': 5.0, 'surrogate_grad_clip': 5.0, 'name': 'clip_5'},
     {'trigger_grad_clip': 10.0, 'surrogate_grad_clip': 10.0, 'name': 'clip_10'},
 ]
 
@@ -296,7 +306,7 @@ def get_trigger_epochs(num_classes):
     Returns:
         int: Number of trigger training epochs (15 × num_classes)
     """
-    return min(15 * num_classes, 200)
+    return min(10 * num_classes, 200)
 
 def get_patch_config(seq_len):
     """Get patch length and stride based on sequence length."""

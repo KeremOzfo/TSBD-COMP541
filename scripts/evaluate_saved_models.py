@@ -101,10 +101,9 @@ def generate_evaluation_command(checkpoint_path, metadata, target_model='TimesNe
     cmd += f" --Tmodel {tmodel}"
     cmd += f" --method {method}"
     cmd += f" --save_test_samples"
-    
     # Add default training parameters (won't be used since trigger is pre-trained)
     cmd += f" --trigger_epochs 0"  # No training needed
-    
+    cmd += f" --bd_train_epochs 10"
     return cmd
 
 
@@ -136,7 +135,7 @@ def scan_saved_models(saved_models_dir='Saved_models'):
 
 
 def generate_evaluation_scripts(models, output_dir='scripts/evaluation_scripts', 
-                                target_models=['TimesNet', 'TCN'],
+                                target_models=['TimesNet'],
                                 cross_dataset=False, all_datasets=None):
     """Generate bash/PowerShell scripts to evaluate all models.
     
@@ -245,7 +244,7 @@ def main():
                        help='Directory containing saved .pth model files')
     parser.add_argument('--output_dir', type=str, default='scripts/evaluation_scripts',
                        help='Directory to save generated scripts')
-    parser.add_argument('--target_models', type=str, nargs='+', default=['TimesNet', 'TCN'],
+    parser.add_argument('--target_models', type=str, nargs='+', default=['TCN'],
                        help='Target classification models to evaluate against')
     parser.add_argument('--cross_dataset', action='store_true',
                        help='Also generate cross-dataset evaluation commands')

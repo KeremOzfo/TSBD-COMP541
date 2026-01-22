@@ -35,12 +35,12 @@ with open(csv_path, 'r') as f:
 TRIGGER_MODELS = ['ccnn', 'ccnn_cae']
 
 # Main classifier models to explore
-MAIN_MODELS = ['TCN', 'TimesNet','lstm']
+MAIN_MODELS = ['TimesNet','TCN','lstm']
 
 # All methods except defeat and basic
 #TRAINING_METHODS = ['vanilla', 'marksman', 'diversity', 'ultimate', 'frequency', 'inputaware', 'pureinputaware']
-TRAINING_METHODS = ['vanilla', 'marksman'] # check vanilla and marksman first
-
+#TRAINING_METHODS = ['vanilla', 'marksman'] # check vanilla and marksman first
+TRAINING_METHODS = ['pureinputaware','inputaware_masking']  # for quick testing
 # ==================== OPTIMIZER CONFIGURATIONS ====================
 OPTIMIZER_CONFIGS = {
     # Standard configurations
@@ -152,6 +152,47 @@ OPTIMIZER_CONFIGS = {
     }
 }
 
+OPTIMIZER_CONFIGS_TOP3 = {
+    # RANK 1: Best overall - Adam for trigger, SGD for surrogate (Mean CA: 0.8162)
+    'adam_sgd_best': {
+        'trigger_opt': 'adam',
+        'trigger_lr': 1e-3,
+        'trigger_weight_decay': 0.0,
+        'surrogate_opt': 'sgd',
+        'surrogate_lr': 1e-2,
+        'surrogate_weight_decay': 5e-4,
+        'surrogate_L2_penalty': 0.0,
+        'description': 'RANK 1: Best performing - Adam/SGD (CA: 0.8162)'
+    },
+    
+    # RANK 2: Best single optimizer - SGD for both (Mean CA: 0.8113)
+    'sgd_sgd_best': {
+        'trigger_opt': 'sgd',
+        'trigger_lr': 5e-2,
+        'trigger_weight_decay': 1e-3,
+        'surrogate_opt': 'sgd',
+        'surrogate_lr': 5e-2,
+        'surrogate_weight_decay': 1e-3,
+        'surrogate_L2_penalty': 0.0,
+        'description': 'RANK 2: Best single optimizer - SGD/SGD (CA: 0.8113)'
+    },
+    
+    # RANK 3: Balanced - SGD for trigger, Adam for surrogate (Mean CA: 0.8102)
+    'sgd_adam_best': {
+        'trigger_opt': 'sgd',
+        'trigger_lr': 1e-2,
+        'trigger_weight_decay': 5e-4,
+        'surrogate_opt': 'adam',
+        'surrogate_lr': 1e-3,
+        'surrogate_weight_decay': 0.0,
+        'surrogate_L2_penalty': 0.0,
+        'description': 'RANK 3: Balanced performance - SGD/Adam (CA: 0.8102)'
+    }
+}
+
+# Use TOP 3 configs for new experiments
+OPTIMIZER_CONFIGS = OPTIMIZER_CONFIGS_TOP3
+
 # ==================== METHOD-SPECIFIC HYPERPARAMETERS ====================
 METHOD_HYPERPARAMS = {
     'vanilla': [
@@ -207,6 +248,137 @@ METHOD_HYPERPARAMS = {
         {'name': 'cross_focused', 'params': {'lambda_freq': 0.5, 'lambda_div': 0.5, 'lambda_reg': 1e-3, 'lambda_cross': 3.0, 'p_attack': 0.5, 'p_cross': 0.2}},
         {'name': 'high_reg', 'params': {'lambda_freq': 1.0, 'lambda_div': 1.0, 'lambda_reg': 1e-2, 'lambda_cross': 1.0, 'p_attack': 0.5, 'p_cross': 0.1}},
         {'name': 'aggressive', 'params': {'lambda_freq': 2.0, 'lambda_div': 2.0, 'lambda_reg': 1e-3, 'lambda_cross': 2.0, 'p_attack': 0.7, 'p_cross': 0.15}},
+    ],
+    'inputaware_masking': [
+        # Balanced baseline configurations
+        {'name': 'balanced', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        
+        # Vary attack probability
+        {'name': 'high_attack', 'params': {
+            'p_attack': 0.7, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        {'name': 'low_attack', 'params': {
+            'p_attack': 0.3, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        
+        # Vary cross-entropy loss
+        {'name': 'high_cross', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.2, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        {'name': 'strong_cross_loss', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 2.0,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        {'name': 'weak_cross_loss', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 0.5,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        
+        # Vary mask density (sparsity control)
+        {'name': 'sparse_mask', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.02, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        {'name': 'dense_mask', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.1, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        {'name': 'very_dense_mask', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.2, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        
+        # Vary mask learning rate
+        {'name': 'low_mask_lr', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 5e-4, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        {'name': 'high_mask_lr', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 5e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        {'name': 'very_high_mask_lr', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 1e-2, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 20
+        }},
+        
+        # Vary mask weight decay (regularization)
+        {'name': 'light_mask_reg', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 1e-4,
+            'mask_pretrain_epochs': 20
+        }},
+        {'name': 'heavy_mask_reg', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 1e-3,
+            'mask_pretrain_epochs': 20
+        }},
+        
+        # Vary mask pretrain epochs
+        {'name': 'short_pretrain', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 10
+        }},
+        {'name': 'long_pretrain', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 40
+        }},
+        {'name': 'very_long_pretrain', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.05, 'mask_lr': 1e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 60
+        }},
+        
+        # Combined aggressive configurations
+        {'name': 'aggressive', 'params': {
+            'p_attack': 0.7, 'p_cross': 0.2, 'lambda_cross': 2.0,
+            'mask_density': 0.1, 'mask_lr': 5e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 40
+        }},
+        {'name': 'aggressive_sparse', 'params': {
+            'p_attack': 0.7, 'p_cross': 0.2, 'lambda_cross': 2.0,
+            'mask_density': 0.02, 'mask_lr': 5e-3, 'mask_weight_decay': 1e-4,
+            'mask_pretrain_epochs': 40
+        }},
+        
+        # Conservative configurations
+        {'name': 'conservative', 'params': {
+            'p_attack': 0.3, 'p_cross': 0.05, 'lambda_cross': 0.5,
+            'mask_density': 0.02, 'mask_lr': 5e-4, 'mask_weight_decay': 1e-3,
+            'mask_pretrain_epochs': 10
+        }},
+        
+        # Optimal combination explorations
+        {'name': 'dense_slow_long', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.1, 'mask_lr': 5e-4, 'mask_weight_decay': 1e-4,
+            'mask_pretrain_epochs': 40
+        }},
+        {'name': 'sparse_fast_short', 'params': {
+            'p_attack': 0.5, 'p_cross': 0.1, 'lambda_cross': 1.0,
+            'mask_density': 0.02, 'mask_lr': 5e-3, 'mask_weight_decay': 0.0,
+            'mask_pretrain_epochs': 10
+        }},
     ]
 }
 

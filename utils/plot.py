@@ -133,12 +133,36 @@ def plot_backdoor_cases(
     if clean_np.ndim != 3:
         raise ValueError("Expected input shape [N, T, C]")
 
+    # Flatten predictions and labels to 1D if needed
+    preds_np = preds_np.ravel()
+    labels_np = labels_np.ravel()
+    
+    # Debug: check array lengths
+    print(f"[plot_backdoor_cases] clean_np.shape[0]={clean_np.shape[0]}, len(preds_np)={len(preds_np)}, len(labels_np)={len(labels_np)}")
+    
+    # Ensure all arrays have same length
+    n_samples = clean_np.shape[0]
+    if len(preds_np) != n_samples or len(labels_np) != n_samples:
+        min_samples = min(n_samples, len(preds_np), len(labels_np))
+        print(f"[plot_backdoor_cases] WARNING: Array length mismatch! Truncating to {min_samples}")
+        clean_np = clean_np[:min_samples]
+        triggered_np = triggered_np[:min_samples]
+        preds_np = preds_np[:min_samples]
+        labels_np = labels_np[:min_samples]
+        n_samples = min_samples
+
     save_root = Path(save_dir)
-    ids = list(sample_ids) if sample_ids is not None else [f"idx{idx}" for idx in range(clean_np.shape[0])]
-    if len(ids) != clean_np.shape[0]:
-        raise ValueError("sample_ids length must match number of samples")
+    # Handle sample_ids: use it only if it's not None and has the correct length
+    if sample_ids is not None:
+        ids = list(sample_ids)
+        if len(ids) != n_samples:
+            print(f"[plot_backdoor_cases] WARNING: sample_ids length ({len(ids)}) != number of samples ({n_samples}). Using default indices.")
+            ids = [f"idx{idx}" for idx in range(n_samples)]
+    else:
+        ids = [f"idx{idx}" for idx in range(n_samples)]
 
     success_idx, failure_idx = _select_indices(preds_np, labels_np, target_label, max_success, max_failure)
+    print(f"[plot_backdoor_cases] Found {len(success_idx)} success and {len(failure_idx)} failure cases")
 
     saved = {"success": [], "failure": []}
 

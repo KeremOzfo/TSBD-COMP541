@@ -252,7 +252,7 @@ def main(root: Path, params: List[str], aggregate: bool, best_by_score: bool, to
 
 if __name__ == "__main__":
 	# Configure here instead of command-line arguments
-	ROOT = Path("Results/all2all")  # Root directory to scan
+	ROOT = Path("Results/iblis")  # Root directory to scan
 	
 	# Base parameters
 	PARAMS = ["model", "Tmodel", "root_path", "method", "bd_type"]
@@ -288,8 +288,8 @@ if __name__ == "__main__":
 	#PARAMS += ["lambda_reg"]
 	
 	AGGREGATE = False  # True to average duplicates by PARAMS
-	BEST_BY_SCORE = False  # True to select best run by (CA+ASR) per PARAMS combination
-	TOP_N_AGGREGATE = 3  # If > 0, average top N runs by (CA+ASR) per PARAMS combination
+	BEST_BY_SCORE = True  # True to select best run by (CA+ASR) per PARAMS combination
+	TOP_N_AGGREGATE = 0  # If > 0, average top N runs by (CA+ASR) per PARAMS combination
 	# Note: AGGREGATE, BEST_BY_SCORE, and TOP_N_AGGREGATE are mutually exclusive
 	
 	OUTPUT = Path("results_summary.xlsx")
