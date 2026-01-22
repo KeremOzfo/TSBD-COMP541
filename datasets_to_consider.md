@@ -1,17 +1,28 @@
-LLST
-Epilepsy
-JapaneseVowels
-Haptics
-PhonemeSpectra
+--TSBA datasets Univariate---
+BirdChicken +
+ECG5000 + 
+Earthquakes +
+ElectricDevices + 
+Haptics +
+PowerCons 
+ShapeletSim +
+Wine +
+
+--TSBA datasets Multivariate---
+SpokenArabicDigits
 UWaveGestureLibrary
+----------------------------
+
+LLST 
+Epilepsy
+RacketSports
+JapaneseVowels
+PhonemeSpectra
 BasicMotions
 Strawberry
 Cricket
-ElectricDevices
 CharacterTrajectories
 SelfRegulationSCP1
-ECG5000
-MotorImagery
-Handwriting
 SharePriceIncrease
-Pendigits, FaceDetection,SpokenArabicDigits,WalkingSittingStanding --> For Latent
+Pendigits
+WalkingSittingStanding
